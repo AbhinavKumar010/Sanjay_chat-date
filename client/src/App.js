@@ -9,7 +9,9 @@ import BrowsePage from './pages/BrowsePage';
 import ChatPage from './pages/ChatPage';
 import MatchesPage from './pages/MatchesPage';
 import ProfilePage from './pages/ProfilePage';
+import NotificationsPage from './pages/NotificationsPage';
 import './App.css';
+
 
 const PrivateRoute = ({ children }) => {
   const { token, isLoading } = useAuth();
@@ -57,7 +59,16 @@ const AppRoutes = () => {
           </PrivateRoute>
         }
       />
+      <Route
+        path="/notifications"
+        element={
+          <PrivateRoute>
+            <NotificationsPage />
+          </PrivateRoute>
+        }
+      />
       <Route path="/chat/:userId" element={<ChatPage />} />
+
       <Route
         path="/profile"
         element={

@@ -7,13 +7,16 @@ import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 
+
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
 
 const ChatPage = () => {
-  const [conversations, setConversations] = useState([]);
-  const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
+
+  const [users, setUsers] = useState([]);
+  const [conversations, setConversations] = useState([]);
+
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -37,7 +40,6 @@ const ChatPage = () => {
 
   useEffect(() => {
     fetchConversations();
-    fetchUsers();
 
     // Prefer route param, then navigation state.
     const routeUserId = params?.userId;
@@ -48,14 +50,23 @@ const ChatPage = () => {
     }
   }, []);
 
+
   useEffect(() => {
     selectedUserRef.current = selectedUserId;
+
+    // Keep selectedUser in sync with selectedUserId + loaded users.
     if (selectedUserId) {
-      const existingUser = users.find((u) => u._id === selectedUserId);
-      setSelectedUser(existingUser || null);
+      // We don't render user/conversation lists here; selectedUser is only used for message placeholder/title.
+      setSelectedUser({ _id: selectedUserId, name: selectedUserId });
+
+
+      // Load messages once when switching chats.
       handleSelectUser(selectedUserId);
+    } else {
+      setSelectedUser(null);
+      setMessages([]);
     }
-  }, [selectedUserId, users]);
+  }, [selectedUserId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,7 +83,7 @@ const ChatPage = () => {
       console.log('[socket] connected, joined as', userId);
     });
 
-    socketRef.current.on('receive_message', (data) => {
+    socketRef.current.on('receive_message', async (data) => {
       // eslint-disable-next-line no-console
       console.log('[socket] receive_message', data);
 
@@ -80,6 +91,7 @@ const ChatPage = () => {
       const isFromActivePeer = data.senderId === activePeerId;
       const isToActivePeer = data.receiverId === activePeerId;
 
+      // If user is actively chatting with the other person, append to UI.
       if (isFromActivePeer || isToActivePeer) {
         setMessages((prev) => [
           ...prev,
@@ -88,16 +100,48 @@ const ChatPage = () => {
             sender: { _id: data.senderId },
           },
         ]);
-      } else {
-        toast.success('New message received');
+        return;
       }
+
+      // Otherwise persist notification so it remains in Notifications even if user is online.
+      try {
+        await apiClient.post('/notifications/quick', {
+          type: 'message',
+          fromId: data.senderId,
+          content: data.content,
+        });
+      } catch (e) {
+        // ignore persistence errors
+      }
+
+      toast.success('New message received');
     });
 
-    socketRef.current.on('incoming_call', (data) => {
+
+    socketRef.current.on('incoming_call', async (data) => {
       // eslint-disable-next-line no-console
       console.log('[socket] incoming_call', data);
+      // If user is not actively in a chat with the caller, persist notification
+      // (still show call UI if it's for the current user).
+      try {
+        const activePeerId = selectedUserRef.current;
+        const isActiveChat = activePeerId && data.from === activePeerId;
+        const toMe = data.to === userId;
+
+        if (toMe && !isActiveChat) {
+          await apiClient.post('/notifications/quick', {
+            type: 'call',
+            fromId: data.from,
+            content: data.name || '',
+          });
+        }
+      } catch (e) {
+        // ignore persistence errors
+      }
+
       handleIncomingCall(data);
     });
+
     socketRef.current.on('answer_made', (data) => {
       // eslint-disable-next-line no-console
       console.log('[socket] answer_made', data);
@@ -125,7 +169,7 @@ const ChatPage = () => {
   const fetchUsers = async () => {
     try {
       const response = await userService.listUsers();
-      setUsers(response.data);
+      setUsers(response.data || []);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Unable to fetch users');
@@ -334,85 +378,13 @@ const ChatPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700 flex flex-col md:flex-row">
-      {/* Sidebar */}
-      <motion.div
-        className="hidden md:flex md:w-96 bg-gray-900 border-r border-gray-700 flex-col"
-        initial={{ x: -300, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-      >
-        <div className="p-6 border-b border-gray-700">
-          <div className="flex items-center gap-2 mb-6">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="text-white hover:bg-gray-800 p-2 rounded-lg transition"
-            >
-              <FaArrowLeft />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Messages</h1>
-              <p className="text-sm text-gray-400">Chat or video call any registered user</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4 border-b border-gray-800 text-gray-300">
-            <p className="font-semibold text-sm uppercase tracking-[0.2em]">Conversations</p>
-          </div>
-          {conversations.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="p-6 text-center text-gray-400"
-            >
-              <p>No conversations yet</p>
-              <p className="text-sm mt-2">Pick a user from the directory below.</p>
-            </motion.div>
-          ) : (
-            conversations.map((conv, index) => (
-              <motion.div
-                key={index}
-                onClick={() => handleSelectUser(conv._id)}
-                whileHover={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
-                className={`p-4 border-b border-gray-700 cursor-pointer transition ${
-                  selectedUserId === conv._id ? 'bg-gray-800' : 'hover:bg-gray-800/50'
-                }`}
-              >
-                <p className="text-white font-semibold truncate">{conv.lastMessage || 'New conversation'}</p>
-                <small className="text-gray-500">{new Date(conv.lastMessageTime || Date.now()).toLocaleDateString()}</small>
-              </motion.div>
-            ))
-          )}
-
-          <div className="p-4 border-t border-gray-800 text-gray-300">
-            <p className="font-semibold text-sm uppercase tracking-[0.2em]">Users</p>
-          </div>
-          {users.map((userItem) => (
-            <motion.div
-              key={userItem._id}
-              onClick={() => handleSelectUser(userItem._id)}
-              whileHover={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
-              className={`p-4 border-b border-gray-700 cursor-pointer transition ${
-                selectedUserId === userItem._id ? 'bg-gray-800' : 'hover:bg-gray-800/50'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-white font-semibold truncate">{userItem.name}</p>
-                  <p className="text-gray-500 text-sm truncate">{userItem.bio || 'No bio set'}</p>
-                </div>
-                <span className="text-xs text-gray-400">{userItem.age}</span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
+      {/* Sidebar removed: Chat opens directly for selected user */}
       <motion.div
         className="flex-1 bg-gradient-to-br from-gray-800 to-gray-900 flex flex-col"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
+
         <div className="p-6 border-b border-gray-700 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-3xl font-bold text-white">{selectedUser ? selectedUser.name : 'Select a user'}</h2>
@@ -538,11 +510,19 @@ const ChatPage = () => {
   </div>
 
   {/* VIDEO PANEL */}
-  <div className="w-full md:w-96 border-l border-gray-700 bg-gray-950 p-6 overflow-y-auto">
+  <div className="w-full md:w-96 border-l border-gray-700 bg-gray-950 p-4 md:p-6 overflow-y-auto">
     
-    <h3 className="text-xl text-white font-semibold mb-4">
-      Video Call Panel
-    </h3>
+    <div className="flex items-start justify-between gap-3 mb-4">
+      <h3 className="text-xl md:text-2xl text-white font-semibold">Video Call</h3>
+      {callAccepted && (
+        <button
+          onClick={endCall}
+          className="bg-red-500 text-white px-3 py-2 rounded-full font-semibold transition shadow-lg active:scale-95"
+        >
+          End
+        </button>
+      )}
+    </div>
 
     <div className="space-y-4">
 
@@ -615,25 +595,7 @@ const ChatPage = () => {
   </div>
 
 </div>
-        <form onSubmit={handleSendMessage} className="border-t border-gray-700 p-6 flex gap-3">
-          <input
-            type="text"
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            placeholder={selectedUser ? `Message ${selectedUser.name}...` : 'Select a user to send a message'}
-            className="flex-1 bg-gray-800 text-white rounded-full px-6 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 transition"
-            disabled={!selectedUser}
-          />
-          <motion.button
-            type="submit"
-            whileHover={{ scale: selectedUser ? 1.05 : 1 }}
-            whileTap={{ scale: selectedUser ? 0.95 : 1 }}
-            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:shadow-lg text-white rounded-full p-3 transition disabled:opacity-50"
-            disabled={!selectedUser}
-          >
-            <FaPaperPlane />
-          </motion.button>
-        </form>
+
       </motion.div>
     </div>
   );

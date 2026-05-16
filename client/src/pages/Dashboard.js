@@ -2,8 +2,9 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FaSignOutAlt, FaFire, FaComments, FaHeart, FaUser } from 'react-icons/fa';
+import { FaSignOutAlt, FaFire, FaComments, FaHeart, FaUser, FaBell } from 'react-icons/fa';
 import toast from 'react-hot-toast';
+
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -36,8 +37,10 @@ const Dashboard = () => {
     { icon: FaFire, label: 'Browse', path: '/browse', color: 'from-orange-400 to-red-500' },
     { icon: FaHeart, label: 'Matches', path: '/matches', color: 'from-pink-400 to-red-500' },
     { icon: FaComments, label: 'Messages', path: '/chat', color: 'from-blue-400 to-purple-500' },
+    { icon: FaBell, label: 'Notifications', path: '/notifications', color: 'from-yellow-400 to-orange-500' },
     { icon: FaUser, label: 'Profile', path: '/profile', color: 'from-green-400 to-teal-500' },
   ];
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black p-6">

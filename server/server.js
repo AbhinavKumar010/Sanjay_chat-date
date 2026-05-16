@@ -8,6 +8,8 @@ const socketIO = require('socket.io');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+
 
 dotenv.config();
 
@@ -46,24 +48,52 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('send_message', (data) => {
-    const receiverSocketId = onlineUsers.get(data.receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit('receive_message', {
-        content: data.content,
-        senderId: data.senderId,
-        receiverId: data.receiverId,
-        createdAt: new Date(),
-      });
+  socket.on('send_message', async (data) => {
+    try {
+      const receiverSocketId = onlineUsers.get(data.receiverId);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit('receive_message', {
+          content: data.content,
+          senderId: data.senderId,
+          receiverId: data.receiverId,
+          createdAt: new Date(),
+        });
+      } else {
+        const notificationController = require('./controllers/notificationController');
+        await notificationController.createNotification({
+          ownerId: data.receiverId,
+          fromId: data.senderId,
+          type: 'message',
+          content: data.content,
+        });
+      }
+    } catch (e) {
+      console.error('Error handling send_message', e);
     }
   });
 
-  socket.on('call_user', (data) => {
-    const targetSocketId = onlineUsers.get(data.to);
-    if (targetSocketId) {
-      io.to(targetSocketId).emit('incoming_call', data);
+
+  socket.on('call_user', async (data) => {
+    try {
+      const targetSocketId = onlineUsers.get(data.to);
+      const notificationController = require('./controllers/notificationController');
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('incoming_call', data);
+        // If receiver is online, ChatPage will persist when not actively chatting.
+      } else {
+        await notificationController.createNotification({
+          ownerId: data.to,
+          fromId: data.from,
+          type: 'call',
+          content: data.name || '',
+        });
+      }
+    } catch (e) {
+      console.error('Error handling call_user', e);
     }
   });
+
+
 
   socket.on('make_answer', (data) => {
     const targetSocketId = onlineUsers.get(data.to);
@@ -98,6 +128,8 @@ io.on('connection', (socket) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/notifications', notificationRoutes);
+
 
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Server is running', timestamp: new Date() });
