@@ -34,6 +34,7 @@ const BrowsePage = () => {
       setLoading(false);
     }
   };
+  
 
   if (loading) {
     return (

@@ -3,7 +3,7 @@ import apiClient, { userService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { FaPaperPlane, FaArrowLeft, FaVideo, FaPhoneSlash, FaUserFriends } from 'react-icons/fa';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 
@@ -31,13 +31,19 @@ const ChatPage = () => {
   const selectedUserRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const params = useParams();
   const { user } = useAuth();
   const userId = user?.id || user?._id;
 
   useEffect(() => {
     fetchConversations();
     fetchUsers();
-    if (location.state?.userId) {
+
+    // Prefer route param, then navigation state.
+    const routeUserId = params?.userId;
+    if (routeUserId) {
+      setSelectedUserId(routeUserId);
+    } else if (location.state?.userId) {
       setSelectedUserId(location.state.userId);
     }
   }, []);
@@ -327,10 +333,10 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700 flex h-screen overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700 flex flex-col md:flex-row">
       {/* Sidebar */}
       <motion.div
-        className="w-full md:w-96 bg-gray-900 border-r border-gray-700 flex flex-col"
+        className="hidden md:flex md:w-96 bg-gray-900 border-r border-gray-700 flex-col"
         initial={{ x: -300, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
       >
@@ -436,104 +442,179 @@ const ChatPage = () => {
           )}
         </div>
 
-        <div className="flex-1 overflow-hidden md:flex">
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {selectedUser ? (
-              <>
-                {loadingMessages ? (
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity }}
-                    className="flex justify-center"
-                  >
-                    <span className="text-4xl">⚡</span>
-                  </motion.div>
-                ) : messages.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-center text-gray-400 mt-10"
-                  >
-                    <p className="text-lg">No messages yet. Send the first one!</p>
-                  </motion.div>
-                ) : (
-                  messages.map((msg, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`flex ${msg.sender._id === userId ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-xs lg:max-w-md xl:max-w-lg px-4 py-2 rounded-lg ${
-                          msg.sender._id === userId
-                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-br-none'
-                            : 'bg-gray-700 text-white rounded-bl-none'
-                        }`}
-                      >
-                        <p className="break-words">{msg.content}</p>
-                      </div>
-                    </motion.div>
-                  ))
-                )}
-                <div ref={messagesEndRef} />
-              </>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 px-6">
-                <FaUserFriends className="text-6xl mb-4" />
-                <p className="text-xl font-semibold">Select a user to open a chat.</p>
-                <p className="mt-2 text-sm">All registered users are available in the sidebar.</p>
-              </div>
-            )}
-          </div>
+       <div className="flex-1 overflow-hidden md:flex">
+  
+  {/* CHAT AREA */}
+  <div className="flex-1 flex flex-col min-h-0">
+    
+    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      {selectedUser ? (
+        <>
+          {loadingMessages ? (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity }}
+              className="flex justify-center"
+            >
+              <span className="text-4xl">⚡</span>
+            </motion.div>
+          ) : messages.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center text-gray-400 mt-10"
+            >
+              <p className="text-lg">No messages yet. Send the first one!</p>
+            </motion.div>
+          ) : (
+            messages.map((msg, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`flex ${
+                  msg.sender._id === userId
+                    ? 'justify-end'
+                    : 'justify-start'
+                }`}
+              >
+                <div
+                  className={`max-w-xs lg:max-w-md xl:max-w-lg px-4 py-2 rounded-lg ${
+                    msg.sender._id === userId
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-br-none'
+                      : 'bg-gray-700 text-white rounded-bl-none'
+                  }`}
+                >
+                  <p className="break-words">{msg.content}</p>
+                </div>
+              </motion.div>
+            ))
+          )}
 
-          <div className="w-full md:w-96 border-l border-gray-700 bg-gray-950 p-6 overflow-y-auto">
-            <h3 className="text-xl text-white font-semibold mb-4">Video Call Panel</h3>
-            <div className="space-y-4">
-              <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4">
-                <p className="text-gray-400 mb-3">Local camera</p>
-                <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-56 rounded-2xl bg-black" />
-              </div>
-              <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4">
-                <p className="text-gray-400 mb-3">Remote stream</p>
-                <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-56 rounded-2xl bg-black" />
-                {remoteStreamActive ? null : (
-                  <p className="text-gray-500 text-sm mt-3">Remote video will appear here once the call is connected.</p>
-                )}
-              </div>
-              {call.isReceivingCall && (
-                <div className="rounded-3xl bg-purple-900/90 border border-purple-700 p-4 text-white">
-                  <p className="font-semibold">Incoming call from {call.name}</p>
-                  <div className="mt-4 flex gap-3">
-                    <button
-                      onClick={answerCall}
-                      className="flex-1 bg-green-500 hover:bg-green-600 rounded-full py-3 font-semibold transition"
-                    >
-                      Answer
-                    </button>
-                    <button
-                      onClick={endCall}
-                      className="flex-1 bg-red-500 hover:bg-red-600 rounded-full py-3 font-semibold transition"
-                    >
-                      Decline
-                    </button>
-                  </div>
-                </div>
-              )}
-              {callAccepted && (
-                <div className="rounded-3xl bg-green-900/80 border border-green-700 p-4 text-white">
-                  <p>Video call active. You can end the call anytime.</p>
-                </div>
-              )}
-              {callEnded && (
-                <div className="rounded-3xl bg-red-900/80 border border-red-700 p-4 text-white">
-                  <p>Call ended.</p>
-                </div>
-              )}
-            </div>
+          <div ref={messagesEndRef} />
+        </>
+      ) : (
+        <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 px-6">
+          <FaUserFriends className="text-6xl mb-4" />
+          <p className="text-xl font-semibold">
+            Select a user to open a chat.
+          </p>
+          <p className="mt-2 text-sm">
+            All registered users are available in the sidebar.
+          </p>
+        </div>
+      )}
+    </div>
+
+    {/* MESSAGE INPUT */}
+    <form
+      onSubmit={handleSendMessage}
+      className="border-t border-gray-700 p-4 flex gap-3"
+    >
+      <input
+        type="text"
+        value={messageText}
+        onChange={(e) => setMessageText(e.target.value)}
+        placeholder={
+          selectedUser
+            ? `Message ${selectedUser.name}...`
+            : 'Select a user to send a message'
+        }
+        className="flex-1 bg-gray-800 text-white rounded-full px-6 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
+        disabled={!selectedUser}
+      />
+
+      <motion.button
+        type="submit"
+        whileHover={{ scale: selectedUser ? 1.05 : 1 }}
+        whileTap={{ scale: selectedUser ? 0.95 : 1 }}
+        className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full p-4 disabled:opacity-50"
+        disabled={!selectedUser}
+      >
+        <FaPaperPlane />
+      </motion.button>
+    </form>
+
+  </div>
+
+  {/* VIDEO PANEL */}
+  <div className="w-full md:w-96 border-l border-gray-700 bg-gray-950 p-6 overflow-y-auto">
+    
+    <h3 className="text-xl text-white font-semibold mb-4">
+      Video Call Panel
+    </h3>
+
+    <div className="space-y-4">
+
+      <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4">
+        <p className="text-gray-400 mb-3">Local camera</p>
+
+        <video
+          ref={localVideoRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full h-56 rounded-2xl bg-black"
+        />
+      </div>
+
+      <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4">
+        <p className="text-gray-400 mb-3">Remote stream</p>
+
+        <video
+          ref={remoteVideoRef}
+          autoPlay
+          playsInline
+          className="w-full h-56 rounded-2xl bg-black"
+        />
+
+        {!remoteStreamActive && (
+          <p className="text-gray-500 text-sm mt-3">
+            Remote video will appear here once connected.
+          </p>
+        )}
+      </div>
+
+      {call.isReceivingCall && (
+        <div className="rounded-3xl bg-purple-900/90 border border-purple-700 p-4 text-white">
+          <p className="font-semibold">
+            Incoming call from {call.name}
+          </p>
+
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={answerCall}
+              className="flex-1 bg-green-500 hover:bg-green-600 rounded-full py-3 font-semibold"
+            >
+              Answer
+            </button>
+
+            <button
+              onClick={endCall}
+              className="flex-1 bg-red-500 hover:bg-red-600 rounded-full py-3 font-semibold"
+            >
+              Decline
+            </button>
           </div>
         </div>
+      )}
 
+      {callAccepted && (
+        <div className="rounded-3xl bg-green-900/80 border border-green-700 p-4 text-white">
+          <p>Video call active.</p>
+        </div>
+      )}
+
+      {callEnded && (
+        <div className="rounded-3xl bg-red-900/80 border border-red-700 p-4 text-white">
+          <p>Call ended.</p>
+        </div>
+      )}
+
+    </div>
+  </div>
+
+</div>
         <form onSubmit={handleSendMessage} className="border-t border-gray-700 p-6 flex gap-3">
           <input
             type="text"
