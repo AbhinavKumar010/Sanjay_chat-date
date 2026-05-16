@@ -57,6 +57,7 @@ const AppRoutes = () => {
           </PrivateRoute>
         }
       />
+      <Route path="/chat/:userId" element={<ChatPage />} />
       <Route
         path="/profile"
         element={
@@ -66,6 +67,8 @@ const AppRoutes = () => {
         }
       />
     </Routes>
+
+    
   );
 };
 

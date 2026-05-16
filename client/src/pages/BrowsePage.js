@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import apiClient from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FaHeart, FaTimes, FaArrowLeft } from 'react-icons/fa';
+import apiClient, { userService } from '../services/api';
+import { motion } from 'framer-motion';
+import {
+  FaArrowLeft,
+  FaMapMarkerAlt,
+  FaUser,
+  FaComments,
+  FaCircle
+} from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 const BrowsePage = () => {
   const [users, setUsers] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -19,203 +23,128 @@ const BrowsePage = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await apiClient.get('/users/browse');
-      setUsers(response.data);
-      setLoading(false);
+      setLoading(true);
+
+      const response = await userService.listUsers();
+      setUsers(response.data || []);
     } catch (error) {
-      toast.error('Error fetching users');
+      console.error(error);
+      toast.error('Unable to load users');
+    } finally {
       setLoading(false);
-    }
-  };
-
-  const handleLike = async () => {
-    const likedUser = users[currentIndex];
-    try {
-      const response = await apiClient.post('/users/like', { likedUserId: likedUser._id });
-      if (response.data.isMatch) {
-        toast.success('It\'s a match! 🎉');
-      } else {
-        toast.success('User liked! 💕');
-      }
-      nextUser();
-    } catch (error) {
-      toast.error('Error liking user');
-    }
-  };
-
-  const handlePass = () => {
-    toast.success('Passed! 👋');
-    nextUser();
-  };
-
-  const nextUser = () => {
-    if (currentIndex < users.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      fetchUsers();
-      setCurrentIndex(0);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity }}
-          className="text-6xl text-white"
-        >
-          ⚡
-        </motion.div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-pink-600">
+        <div className="text-white text-5xl animate-spin">⚡</div>
       </div>
     );
   }
-
-  if (users.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center text-white"
-        >
-          <p className="text-4xl font-bold mb-6">No more users! 😅</p>
-          <p className="text-lg mb-8">Come back later for more profiles</p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="bg-white text-purple-600 px-8 py-3 rounded-full font-bold hover:shadow-lg transition"
-          >
-            Back to Dashboard
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  const currentUser = users[currentIndex];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 flex flex-col items-center justify-center p-4">
-      <motion.button
-        onClick={() => navigate('/dashboard')}
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="absolute top-6 left-6 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-full flex items-center gap-2 transition backdrop-blur"
-      >
-        <FaArrowLeft /> Back
-      </motion.button>
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 p-6">
 
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentUser._id}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-          transition={{ duration: 0.3 }}
-          className="w-full max-w-md"
+      {/* HEADER */}
+      <div className="flex items-center gap-4 mb-8">
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="bg-white/20 text-white px-4 py-2 rounded-full hover:bg-white/30 transition"
         >
-          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-            {/* Profile Image */}
-            {currentUser.profilePhoto ? (
-              <img
-                src={currentUser.profilePhoto}
-                alt={currentUser.name}
-                className="w-full h-96 object-cover"
-              />
-            ) : (
-              <div className="w-full h-96 bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                <span className="text-6xl">👤</span>
-              </div>
-            )}
+          <FaArrowLeft /> Back
+        </button>
 
-            {/* User Info */}
-            <div className="p-6">
-              <motion.h3
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="text-3xl font-bold text-gray-800 mb-2"
-              >
-                {currentUser.name}, {currentUser.age}
-              </motion.h3>
+        <h1 className="text-3xl font-bold text-white">
+          Discover People ({users.length})
+        </h1>
+      </div>
 
-              {currentUser.bio && (
-                <motion.p
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="text-gray-600 mb-4"
-                >
-                  {currentUser.bio}
-                </motion.p>
-              )}
+      {/* EMPTY STATE */}
+      {users.length === 0 ? (
+        <div className="text-center text-white mt-20">
+          <p className="text-3xl font-bold">No users found 😢</p>
+          <p className="mt-2 opacity-80">Try again later</p>
+        </div>
+      ) : (
+        <div className="space-y-5 max-w-3xl mx-auto">
 
-              {currentUser.location && (
-                <motion.p
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-gray-500 text-sm mb-6"
-                >
-                  📍 {currentUser.location.city}, {currentUser.location.country}
-                </motion.p>
-              )}
-
-              {currentUser.interests && currentUser.interests.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5 }}
-                  className="flex flex-wrap gap-2 mb-6"
-                >
-                  {currentUser.interests.map((interest, idx) => (
-                    <span key={idx} className="bg-purple-200 text-purple-800 px-3 py-1 rounded-full text-sm">
-                      {interest}
-                    </span>
-                  ))}
-                </motion.div>
-              )}
-            </div>
-
-            {/* Action Buttons */}
+          {users.map((user, index) => (
             <motion.div
+              key={user._id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              className="px-6 pb-6 flex gap-4"
+              transition={{ delay: index * 0.05 }}
+              whileHover={{ scale: 1.02 }}
+              className="bg-white rounded-3xl shadow-xl p-4 flex gap-4 items-center"
             >
-              <motion.button
-                onClick={handlePass}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white py-3 rounded-full font-bold transition shadow-lg"
-              >
-                <FaTimes className="text-xl" />
-                Pass
-              </motion.button>
-              <motion.button
-                onClick={handleLike}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-red-500 hover:shadow-xl text-white py-3 rounded-full font-bold transition shadow-lg"
-              >
-                <FaHeart className="text-xl" />
-                Like
-              </motion.button>
-            </motion.div>
-          </div>
-        </motion.div>
-      </AnimatePresence>
 
-      {/* Progress */}
-      <motion.p
-        className="text-white mt-8 text-lg font-semibold"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.7 }}
-      >
-        {currentIndex + 1} of {users.length}
-      </motion.p>
+              {/* PROFILE IMAGE */}
+              <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gray-200 flex items-center justify-center">
+                {user.profilePhoto ? (
+                  <img
+                    src={user.profilePhoto}
+                    alt={user.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <FaUser className="text-3xl text-gray-400" />
+                )}
+              </div>
+
+              {/* INFO */}
+              <div className="flex-1">
+
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-800">
+                    {user.name}
+                  </h2>
+
+                  <span className="text-sm bg-pink-100 text-pink-600 px-2 py-1 rounded-full">
+                    {user.age || '18+'}
+                  </span>
+
+                  <FaCircle className="text-green-500 text-xs" />
+                </div>
+
+                <p className="text-gray-500 text-sm line-clamp-1">
+                  {user.bio || "No bio available"}
+                </p>
+
+                {user.location && (
+                  <p className="text-gray-400 text-xs flex items-center gap-1 mt-1">
+                    <FaMapMarkerAlt />
+                    {user.location.city}
+                  </p>
+                )}
+
+              </div>
+
+              {/* ACTIONS */}
+              <div className="flex flex-col gap-2">
+
+                <button
+                  onClick={() => navigate(`/chat/${user._id}`)}
+                  className="bg-gradient-to-r from-pink-500 to-red-500 text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2"
+                >
+                  <FaComments />
+                  Chat
+                </button>
+
+                <button
+                  onClick={() => navigate(`/profile/${user._id}`)}
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-semibold"
+                >
+                  View
+                </button>
+
+              </div>
+
+            </motion.div>
+          ))}
+
+        </div>
+      )}
     </div>
   );
 };

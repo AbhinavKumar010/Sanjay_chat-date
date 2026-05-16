@@ -62,20 +62,51 @@ const ChatPage = () => {
 
     socketRef.current.on('connect', () => {
       socketRef.current.emit('join', userId);
+      // eslint-disable-next-line no-console
+      console.log('[socket] connected, joined as', userId);
     });
 
     socketRef.current.on('receive_message', (data) => {
-      if (data.senderId === selectedUserRef.current) {
-        setMessages((prev) => [...prev, { content: data.content, sender: { _id: data.senderId } }]);
+      // eslint-disable-next-line no-console
+      console.log('[socket] receive_message', data);
+
+      const activePeerId = selectedUserRef.current;
+      const isFromActivePeer = data.senderId === activePeerId;
+      const isToActivePeer = data.receiverId === activePeerId;
+
+      if (isFromActivePeer || isToActivePeer) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            content: data.content,
+            sender: { _id: data.senderId },
+          },
+        ]);
       } else {
         toast.success('New message received');
       }
     });
 
-    socketRef.current.on('incoming_call', handleIncomingCall);
-    socketRef.current.on('answer_made', handleAnswer);
-    socketRef.current.on('ice_candidate', handleIceCandidate);
-    socketRef.current.on('call_ended', handleCallEnded);
+    socketRef.current.on('incoming_call', (data) => {
+      // eslint-disable-next-line no-console
+      console.log('[socket] incoming_call', data);
+      handleIncomingCall(data);
+    });
+    socketRef.current.on('answer_made', (data) => {
+      // eslint-disable-next-line no-console
+      console.log('[socket] answer_made', data);
+      handleAnswer(data);
+    });
+    socketRef.current.on('ice_candidate', (data) => {
+      // eslint-disable-next-line no-console
+      console.log('[socket] ice_candidate', data);
+      handleIceCandidate(data);
+    });
+    socketRef.current.on('call_ended', (data) => {
+      // eslint-disable-next-line no-console
+      console.log('[socket] call_ended', data);
+      handleCallEnded(data);
+    });
 
     return () => {
       if (socketRef.current) {
@@ -257,7 +288,9 @@ const ChatPage = () => {
   };
 
   const handleIceCandidate = async (data) => {
-    if (!peerRef.current || data.to !== userId) return;
+    // Some payloads may not include fields that match local userId reliably.
+    // If we have an active peer connection, add the candidate regardless.
+    if (!peerRef.current) return;
     try {
       await peerRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
     } catch (error) {

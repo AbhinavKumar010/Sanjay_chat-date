@@ -1,26 +1,32 @@
 const User = require('../models/User');
 const Message = require('../models/Message');
+const mongoose = require('mongoose');
+const User = require('../models/User');
 
 exports.browseUsers = async (req, res) => {
   try {
-    const { limit = 10, skip = 0 } = req.query;
-    const currentUser = await User.findById(req.user.id);
+    const { limit = 50, skip = 0 } = req.query;
+
+    const userId = new mongoose.Types.ObjectId(req.user.id);
 
     const users = await User.find({
-      _id: { $ne: req.user.id },
-      gender: currentUser.preferenceGender === 'both' ? { $in: ['male', 'female'] } : currentUser.preferenceGender,
-      _id: { $nin: currentUser.matches },
+      _id: { $ne: userId }   // ONLY exclude self
     })
-      .limit(parseInt(limit))
-      .skip(parseInt(skip))
-      .select('-password');
+      .limit(Number(limit))
+      .skip(Number(skip))
+      .select("-password");
+
+    console.log("USERS FOUND:", users.length);
 
     res.json(users);
   } catch (error) {
-    res.status(500).json({ message: 'Error browsing users', error: error.message });
+    console.log(error);
+    res.status(500).json({
+      message: "Error browsing users",
+      error: error.message,
+    });
   }
 };
-
 exports.likeUser = async (req, res) => {
   try {
     const { likedUserId } = req.body;
