@@ -75,11 +75,18 @@ io.on('connection', (socket) => {
 
   socket.on('call_user', async (data) => {
     try {
+      console.log('[socket][call_user] incoming payload:', data);
+      console.log('[socket][call_user] onlineUsers keys sample:', Array.from(onlineUsers.keys()).slice(0, 5));
+
       const targetSocketId = onlineUsers.get(data.to);
+      console.log('[socket][call_user] lookup onlineUsers.get(data.to):', {
+        to: data.to,
+        targetSocketId,
+      });
+
       const notificationController = require('./controllers/notificationController');
       if (targetSocketId) {
         io.to(targetSocketId).emit('incoming_call', data);
-        // If receiver is online, ChatPage will persist when not actively chatting.
       } else {
         await notificationController.createNotification({
           ownerId: data.to,

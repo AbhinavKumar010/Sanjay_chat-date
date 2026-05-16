@@ -16,9 +16,14 @@ const NotificationsPage = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.get('/notifications');
+      const res = await apiClient.get('/notifications/');
       setNotifications(res.data || []);
     } catch (e) {
+      console.error('[notifications] fetch failed:', {
+        message: e?.message,
+        status: e?.response?.status,
+        data: e?.response?.data,
+      });
       toast.error('Unable to fetch notifications');
     } finally {
       setLoading(false);

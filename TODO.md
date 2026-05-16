@@ -1,12 +1,11 @@
 # TODO
 
-## Notifications feature (Dashboard + persistent alerts)
+## Video call notifications fix
 
-- [ ] Implement backend Notification model + controller + routes.
-- [ ] Persist notifications from socket events when receiver is offline.
-- [ ] Persist notifications from ChatPage when message/call arrives while receiver is not actively chatting with that user.
-- [ ] Add Notifications button to Dashboard UI.
-- [ ] Add NotificationsPage UI with navigation to /chat/:userId via react-router state.
-- [ ] Add client API methods for notifications (list + mark read + (optional) create quick).
-- [ ] Update server/server.js to wire notification routes and save notifications on offline events.
-- [ ] Run server/client and manually verify offline + non-active-chat notification persistence.
+- [x] Inspect existing Socket.IO + WebRTC signaling flow in `client/src/pages/ChatPage.js` and `server/server.js`.
+- [x] Fix call notification persistence on receiver side: when `incoming_call` is received for the logged-in user, always create `/notifications/quick` notification (instead of depending on `selectedUserRef`).
+- [x] Add server-side logging around `call_user` delivery and `onlineUsers.get(data.to)` lookup.
+- [ ] Run/retest flow with 2 users:
+  - [ ] User A taps **Start Video Call**
+  - [ ] Verify User B receives `incoming_call` (check both browser console + server logs)
+  - [ ] Verify User B gets a call notification in **Notifications** page.

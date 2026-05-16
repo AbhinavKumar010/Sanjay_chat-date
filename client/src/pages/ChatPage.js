@@ -105,13 +105,18 @@ const ChatPage = () => {
 
       // Otherwise persist notification so it remains in Notifications even if user is online.
       try {
+        console.log('[notif/quick][message] payload:', {
+          type: 'message',
+          fromId: data.senderId,
+          content: data.content,
+        });
         await apiClient.post('/notifications/quick', {
           type: 'message',
           fromId: data.senderId,
           content: data.content,
         });
       } catch (e) {
-        // ignore persistence errors
+        console.error('[notif/quick][message] failed:', e?.response?.data || e?.message || e);
       }
 
       toast.success('New message received');
@@ -120,23 +125,31 @@ const ChatPage = () => {
 
     socketRef.current.on('incoming_call', async (data) => {
       // eslint-disable-next-line no-console
-      console.log('[socket] incoming_call', data);
-      // If user is not actively in a chat with the caller, persist notification
-      // (still show call UI if it's for the current user).
-      try {
-        const activePeerId = selectedUserRef.current;
-        const isActiveChat = activePeerId && data.from === activePeerId;
-        const toMe = data.to === userId;
+      console.log('[socket] incoming_call', {
+        ...data,
+        ["[clientState] userId"]: userId,
+        ["[clientState] selectedUserRef.current"]: selectedUserRef.current,
+      });
 
-        if (toMe && !isActiveChat) {
-          await apiClient.post('/notifications/quick', {
+      // Always persist call notification when it is for this user.
+      try {
+        const toMe = String(data.to) === String(userId);
+        if (toMe) {
+          const payload = {
             type: 'call',
             fromId: data.from,
             content: data.name || '',
+          };
+          console.log('[notif/quick][call] saving because toMe=true:', {
+            payload,
+            dataTo: data.to,
+            userId,
           });
+          await apiClient.post('/notifications/quick', payload);
+          console.log('[notif/quick][call] saved');
         }
       } catch (e) {
-        // ignore persistence errors
+        console.error('[notif/quick][call] failed:', e?.response?.data || e?.message || e);
       }
 
       handleIncomingCall(data);
@@ -150,6 +163,9 @@ const ChatPage = () => {
     socketRef.current.on('ice_candidate', (data) => {
       // eslint-disable-next-line no-console
       console.log('[socket] ice_candidate', data);
+      if (!data?.candidate) {
+        console.warn('[webrtc][ice] missing data.candidate; full payload:', data);
+      }
       handleIceCandidate(data);
     });
     socketRef.current.on('call_ended', (data) => {
@@ -338,13 +354,17 @@ const ChatPage = () => {
   };
 
   const handleIceCandidate = async (data) => {
-    // Some payloads may not include fields that match local userId reliably.
-    // If we have an active peer connection, add the candidate regardless.
     if (!peerRef.current) return;
+
+    if (!data?.candidate) {
+      console.warn('[webrtc][ice] cannot add candidate; missing data.candidate', data);
+      return;
+    }
+
     try {
       await peerRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
     } catch (error) {
-      console.error('Error adding ICE candidate:', error);
+      console.error('[webrtc][ice] Error adding ICE candidate:', error, 'payload:', data);
     }
   };
 
