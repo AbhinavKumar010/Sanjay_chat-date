@@ -415,12 +415,7 @@ const ChatPage = () => {
             <div className="flex flex-wrap items-center gap-3">
               <motion.button
                 onClick={() => {
-                  // On mobile: open dedicated video call page
-                  if (window.innerWidth < 768) {
-                    navigate(`/video/${selectedUserId}`);
-                    return;
-                  }
-                  // On desktop/tablet: keep old in-page video UI
+                  // On mobile/desktop: open in-page video section only
                   callUser();
                 }}
                 whileHover={{ scale: 1.03 }}
@@ -539,12 +534,11 @@ const ChatPage = () => {
 
   </div>
 
-  {/* VIDEO PANEL */}
+      {/* VIDEO SECTION (only shows after Start Video Call) */}
   <div className="w-full md:w-96 border-l border-gray-700 bg-gray-950 p-4 md:p-6 overflow-y-auto">
-    
     <div className="flex items-start justify-between gap-3 mb-4">
       <h3 className="text-xl md:text-2xl text-white font-semibold">Video Call</h3>
-      {callAccepted && (
+      {(callAccepted || call.isReceivingCall || isCalling || remoteStreamActive) && (
         <button
           onClick={endCall}
           className="bg-red-500 text-white px-3 py-2 rounded-full font-semibold transition shadow-lg active:scale-95"
@@ -554,74 +548,91 @@ const ChatPage = () => {
       )}
     </div>
 
-    <div className="space-y-4">
-
+    {/* Start state */}
+    {!isCalling && !callAccepted && !call.isReceivingCall && !remoteStreamActive && !callEnded && (
       <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4">
-        <p className="text-gray-400 mb-3">Local camera</p>
-
-        <video
-          ref={localVideoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full h-56 rounded-2xl bg-black"
-        />
+        <p className="text-gray-400">Video section is hidden until you start a call.</p>
+        <div className="mt-3 text-white text-sm font-semibold">Tap <span className="text-pink-300">Start Video Call</span> above.</div>
       </div>
+    )}
 
-      <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4">
-        <p className="text-gray-400 mb-3">Remote stream</p>
+    {/* Active section */}
+    {(isCalling || callAccepted || call.isReceivingCall || remoteStreamActive || callEnded) && (
+      <div className="space-y-4">
+        <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4">
+          <p className="text-gray-400 mb-3">Local camera</p>
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-56 rounded-2xl bg-black"
+          />
+        </div>
 
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          playsInline
-          className="w-full h-56 rounded-2xl bg-black"
-        />
+        <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4">
+          <p className="text-gray-400 mb-3">Remote stream</p>
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="w-full h-56 rounded-2xl bg-black"
+          />
 
-        {!remoteStreamActive && (
-          <p className="text-gray-500 text-sm mt-3">
-            Remote video will appear here once connected.
-          </p>
+          {!remoteStreamActive && (
+            <p className="text-gray-500 text-sm mt-3">Remote video will appear once connected.</p>
+          )}
+        </div>
+
+        {/* Emoji reactions */}
+        {callAccepted && (
+          <div className="rounded-3xl bg-purple-900/40 border border-purple-700/50 p-4 text-white">
+            <p className="font-semibold mb-3">React to the call:</p>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" className="text-2xl hover:scale-105 transition">😊</button>
+              <button type="button" className="text-2xl hover:scale-105 transition">😂</button>
+              <button type="button" className="text-2xl hover:scale-105 transition">😍</button>
+              <button type="button" className="text-2xl hover:scale-105 transition">🔥</button>
+              <button type="button" className="text-2xl hover:scale-105 transition">👏</button>
+              <button type="button" className="text-2xl hover:scale-105 transition">❤️</button>
+            </div>
+            <p className="text-gray-300/80 text-sm mt-3">(UI reactions only)</p>
+          </div>
+        )}
+
+        {call.isReceivingCall && (
+          <div className="rounded-3xl bg-purple-900/90 border border-purple-700 p-4 text-white">
+            <p className="font-semibold">Incoming call from {call.name}</p>
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={answerCall}
+                className="flex-1 bg-green-500 hover:bg-green-600 rounded-full py-3 font-semibold"
+              >
+                Answer
+              </button>
+              <button
+                onClick={endCall}
+                className="flex-1 bg-red-500 hover:bg-red-600 rounded-full py-3 font-semibold"
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        )}
+
+        {callAccepted && (
+          <div className="rounded-3xl bg-green-900/80 border border-green-700 p-4 text-white">
+            <p>Video call active.</p>
+          </div>
+        )}
+
+        {callEnded && (
+          <div className="rounded-3xl bg-red-900/80 border border-red-700 p-4 text-white">
+            <p>Call ended.</p>
+          </div>
         )}
       </div>
-
-      {call.isReceivingCall && (
-        <div className="rounded-3xl bg-purple-900/90 border border-purple-700 p-4 text-white">
-          <p className="font-semibold">
-            Incoming call from {call.name}
-          </p>
-
-          <div className="mt-4 flex gap-3">
-            <button
-              onClick={answerCall}
-              className="flex-1 bg-green-500 hover:bg-green-600 rounded-full py-3 font-semibold"
-            >
-              Answer
-            </button>
-
-            <button
-              onClick={endCall}
-              className="flex-1 bg-red-500 hover:bg-red-600 rounded-full py-3 font-semibold"
-            >
-              Decline
-            </button>
-          </div>
-        </div>
-      )}
-
-      {callAccepted && (
-        <div className="rounded-3xl bg-green-900/80 border border-green-700 p-4 text-white">
-          <p>Video call active.</p>
-        </div>
-      )}
-
-      {callEnded && (
-        <div className="rounded-3xl bg-red-900/80 border border-red-700 p-4 text-white">
-          <p>Call ended.</p>
-        </div>
-      )}
-
-    </div>
+    )}
   </div>
 
 </div>

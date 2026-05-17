@@ -53,6 +53,16 @@ io.on('connection', (socket) => {
 
   socket.on('send_message', async (data) => {
     try {
+      const notificationController = require('./controllers/notificationController');
+
+      // Always persist notification (so receiver gets it even if they aren't on ChatPage)
+      await notificationController.createNotification({
+        ownerId: data.receiverId,
+        fromId: data.senderId,
+        type: 'message',
+        content: data.content,
+      });
+
       const receiverSocketId = onlineUsers.get(data.receiverId);
       if (receiverSocketId) {
         io.to(receiverSocketId).emit('receive_message', {
@@ -60,14 +70,6 @@ io.on('connection', (socket) => {
           senderId: data.senderId,
           receiverId: data.receiverId,
           createdAt: new Date(),
-        });
-      } else {
-        const notificationController = require('./controllers/notificationController');
-        await notificationController.createNotification({
-          ownerId: data.receiverId,
-          fromId: data.senderId,
-          type: 'message',
-          content: data.content,
         });
       }
     } catch (e) {
@@ -78,25 +80,19 @@ io.on('connection', (socket) => {
 
   socket.on('call_user', async (data) => {
     try {
-      console.log('[socket][call_user] incoming payload:', data);
-      console.log('[socket][call_user] onlineUsers keys sample:', Array.from(onlineUsers.keys()).slice(0, 5));
+      const notificationController = require('./controllers/notificationController');
 
-      const targetSocketId = onlineUsers.get(data.to);
-      console.log('[socket][call_user] lookup onlineUsers.get(data.to):', {
-        to: data.to,
-        targetSocketId,
+      // Always persist notification (so receiver gets it even if they aren't on Chat/VideoCall page)
+      await notificationController.createNotification({
+        ownerId: data.to,
+        fromId: data.from,
+        type: 'call',
+        content: data.name || '',
       });
 
-      const notificationController = require('./controllers/notificationController');
+      const targetSocketId = onlineUsers.get(data.to);
       if (targetSocketId) {
         io.to(targetSocketId).emit('incoming_call', data);
-      } else {
-        await notificationController.createNotification({
-          ownerId: data.to,
-          fromId: data.from,
-          type: 'call',
-          content: data.name || '',
-        });
       }
     } catch (e) {
       console.error('Error handling call_user', e);

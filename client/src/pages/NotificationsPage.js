@@ -32,8 +32,15 @@ const NotificationsPage = () => {
 
   useEffect(() => {
     fetchNotifications();
+
+    // Auto-refresh notifications instantly without reload
+    // (server creates notifications in real-time; this polls lightweight and updates UI)
+    const intervalId = setInterval(fetchNotifications, 3000);
+
+    return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   const markRead = async (id) => {
     try {

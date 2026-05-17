@@ -11,7 +11,8 @@ const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
 
 const VideoCallPage = () => {
   const { user } = useAuth();
-  const userId = user?.id || user?._id;
+  const userId = user?._id;
+
 
   const { userId: targetUserId } = useParams();
   const navigate = useNavigate();
@@ -39,7 +40,12 @@ const VideoCallPage = () => {
   useEffect(() => {
     if (!userId || !targetUserId) return;
 
-    socketRef.current = io(SOCKET_URL);
+    // Create a new socket each time we have both IDs.
+    // (Prevents duplicate listeners across re-renders)
+    socketRef.current = io(SOCKET_URL, {
+      transports: ['websocket'],
+    });
+
 
     socketRef.current.on('connect', () => {
       socketRef.current.emit('join', userId);
@@ -85,14 +91,7 @@ const VideoCallPage = () => {
       handleCallEnded(data);
     });
 
-    // Auto start calling when page opens (only if target exists)
-    // If user has already been called by them, they will see incoming UI instead.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    setTimeout(() => {
-      if (!callAccepted && !call.isReceivingCall) {
-        callUser().catch(() => {});
-      }
-    }, 300);
+
 
     return () => {
       if (socketRef.current) {
