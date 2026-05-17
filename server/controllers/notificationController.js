@@ -27,15 +27,23 @@ exports.getMyNotifications = async (req, res) => {
 exports.markNotificationAsRead = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!id) return res.status(400).json({ message: 'Missing notification id' });
 
-    await Notification.findOneAndUpdate(
-      { _id: id, owner: req.user.id },
-      { isRead: true }
+    // Support both req.user.id and req.user._id depending on auth middleware implementation.
+    const ownerId = req.user?.id || req.user?._id;
+    if (!ownerId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const updated = await Notification.findOneAndUpdate(
+      { _id: id, owner: ownerId },
+      { isRead: true },
+      { new: true }
     );
 
-    res.json({ message: 'Notification marked as read' });
+    if (!updated) return res.status(404).json({ message: 'Notification not found' });
+    return res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Error marking notification as read', error: error.message });
   }
 };
+
 

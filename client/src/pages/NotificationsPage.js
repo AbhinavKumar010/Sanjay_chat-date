@@ -7,7 +7,9 @@ import toast from 'react-hot-toast';
 import { FaBell, FaRegCommentDots } from 'react-icons/fa';
 
 const NotificationsPage = () => {
-  const { } = useAuth();
+  // Auth is required for protected route; hook kept for future usage.
+  useAuth();
+
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState([]);

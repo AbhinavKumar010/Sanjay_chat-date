@@ -45,11 +45,12 @@ io.on('connection', (socket) => {
 
   socket.on('join', (userId) => {
     if (userId) {
-      onlineUsers.set(userId, socket.id);
-      socket.userId = userId;
-      console.log('User joined socket room:', userId);
+      onlineUsers.set(String(userId), socket.id);
+      socket.userId = String(userId);
+      console.log('User joined socket room:', socket.userId);
     }
   });
+
 
   socket.on('send_message', async (data) => {
     try {
@@ -66,6 +67,7 @@ io.on('connection', (socket) => {
       const receiverSocketId = onlineUsers.get(data.receiverId);
       if (receiverSocketId) {
         io.to(receiverSocketId).emit('receive_message', {
+
           content: data.content,
           senderId: data.senderId,
           receiverId: data.receiverId,

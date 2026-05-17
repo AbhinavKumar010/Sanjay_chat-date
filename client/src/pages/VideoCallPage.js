@@ -11,7 +11,8 @@ const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
 
 const VideoCallPage = () => {
   const { user } = useAuth();
-  const userId = user?._id;
+  const userId = user?._id || user?.id;
+
 
 
   const { userId: targetUserId } = useParams();

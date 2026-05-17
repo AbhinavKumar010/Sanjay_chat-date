@@ -37,7 +37,9 @@ const ChatPage = () => {
   const location = useLocation();
   const params = useParams();
   const { user } = useAuth();
-  const userId = user?.id || user?._id;
+  // Use a consistent field for socket routing
+  const userId = user?._id || user?.id;
+
 
   useEffect(() => {
     fetchConversations();
