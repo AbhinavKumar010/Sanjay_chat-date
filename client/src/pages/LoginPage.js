@@ -36,7 +36,7 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-red-500 flex items-center justify-center px-4">
       <motion.div
         className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md"
         variants={containerVariants}
@@ -96,7 +96,7 @@ const LoginPage = () => {
             disabled={loading}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full bg-gradient-to-r from-purple-500 to-blue-500 text-white py-3 rounded-lg font-bold text-lg hover:shadow-lg transition disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-purple-500 to-red-500 text-white py-3 rounded-lg font-bold text-lg hover:shadow-lg transition disabled:opacity-50"
           >
             {loading ? 'Logging in...' : 'Login'}
           </motion.button>

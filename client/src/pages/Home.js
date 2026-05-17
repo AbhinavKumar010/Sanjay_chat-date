@@ -22,7 +22,7 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 flex items-center justify-center px-4" >
       <motion.div
         className="text-center text-white max-w-2xl"
         variants={containerVariants}
@@ -69,9 +69,9 @@ const Home = () => {
           </Link>
           <Link to="/register">
             <motion.button
-              whileHover={{ scale: 1.05, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)" }}
+              whileHover={{ scale: 1.05, boxShadow: "0 20px 25px -5px rgba(9, 9, 9, 0.3)" }}
               whileTap={{ scale: 0.95 }}
-              className="px-8 py-4 bg-red-500 text-white font-bold text-lg rounded-full shadow-xl hover:shadow-2xl transition border-2 border-white"
+              className="px-8 py-4 bg-gradient-to-br from-blue-500 to-pink-500 text-white font-bold text-lg rounded-full shadow-xl hover:shadow-2xl transition border-2 border-white"
             >
               Register
             </motion.button>
