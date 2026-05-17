@@ -10,10 +10,14 @@ import ChatPage from './pages/ChatPage';
 import MatchesPage from './pages/MatchesPage';
 import ProfilePage from './pages/ProfilePage';
 import NotificationsPage from './pages/NotificationsPage';
+import VideoCallPage from './pages/VideoCallPage';
+import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
 
 
+
 const PrivateRoute = ({ children }) => {
+
   const { token, isLoading } = useAuth();
 
   if (isLoading) return <div>Loading...</div>;
@@ -52,6 +56,14 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/video/:userId"
+        element={
+          <PrivateRoute>
+            <VideoCallPage />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/matches"
         element={
           <PrivateRoute>
@@ -69,11 +81,21 @@ const AppRoutes = () => {
       />
       <Route path="/chat/:userId" element={<ChatPage />} />
 
+
       <Route
         path="/profile"
         element={
           <PrivateRoute>
             <ProfilePage />
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/admin"
+        element={
+          <PrivateRoute>
+            <AdminDashboard />
           </PrivateRoute>
         }
       />

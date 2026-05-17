@@ -44,4 +44,11 @@ export const userService = {
   listUsers: () => apiClient.get('/users/list'),
 };
 
+export const adminService = {
+  listUsers: () => apiClient.get('/admin/users'),
+  blockUser: (id) => apiClient.post(`/admin/users/${id}/block`),
+  unblockUser: (id) => apiClient.post(`/admin/users/${id}/unblock`),
+  removeUser: (id) => apiClient.delete(`/admin/users/${id}`),
+};
+
 export default apiClient;

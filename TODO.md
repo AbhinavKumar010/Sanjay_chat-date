@@ -1,11 +1,19 @@
 # TODO
 
-## Video call notifications fix
+## Admin dashboard + user blocking/removal + auth privacy/security
 
-- [x] Inspect existing Socket.IO + WebRTC signaling flow in `client/src/pages/ChatPage.js` and `server/server.js`.
-- [x] Fix call notification persistence on receiver side: when `incoming_call` is received for the logged-in user, always create `/notifications/quick` notification (instead of depending on `selectedUserRef`).
-- [x] Add server-side logging around `call_user` delivery and `onlineUsers.get(data.to)` lookup.
-- [ ] Run/retest flow with 2 users:
-  - [ ] User A taps **Start Video Call**
-  - [ ] Verify User B receives `incoming_call` (check both browser console + server logs)
-  - [ ] Verify User B gets a call notification in **Notifications** page.
+- [x] Update User model with `role` and `isBlocked`
+
+- [x] Add admin middleware `server/middleware/admin.js`
+- [x] Add admin controller actions in `server/controllers/userController.js`
+- [x] Add admin routes `server/routes/adminRoutes.js`
+- [x] Mount admin routes in `server/server.js`
+- [x] Harden auth: block blocked users in `server/middleware/auth.js` and `server/controllers/authController.js`
+
+- [x] (Optional) Include role in JWT payload in `server/utils/jwt.js`
+
+- [ ] Update profile response to include role/isBlocked (for UI gating)
+- [x] Add React page `client/src/pages/AdminDashboard.js`
+- [x] Add client API calls for admin in `client/src/services/api.js`
+- [x] Add `/admin` route with admin guard in `client/src/App.js`
+- [ ] Smoke test: login blocking + admin block/unblock/remove

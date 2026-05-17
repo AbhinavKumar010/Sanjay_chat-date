@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const Message = require('../models/Message');
 const mongoose = require('mongoose');
-const User = require('../models/User');
+
 
 exports.browseUsers = async (req, res) => {
   try {
@@ -84,3 +84,67 @@ exports.getAllUsers = async (req, res) => {
     res.status(500).json({ message: 'Error fetching users', error: error.message });
   }
 };
+
+// =========================
+// Admin actions
+// =========================
+
+exports.adminListUsers = async (req, res) => {
+  try {
+    const users = await User.find({})
+      .select('name email role isBlocked age gender profilePhoto createdAt')
+      .sort({ createdAt: -1 });
+
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: 'Error listing users', error: error.message });
+  }
+};
+
+exports.adminBlockUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const target = await User.findById(id);
+    if (!target) return res.status(404).json({ message: 'User not found' });
+
+    target.isBlocked = true;
+    await target.save();
+
+    res.json({ message: 'User blocked', userId: target._id, isBlocked: target.isBlocked });
+  } catch (error) {
+    res.status(500).json({ message: 'Error blocking user', error: error.message });
+  }
+};
+
+exports.adminUnblockUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const target = await User.findById(id);
+    if (!target) return res.status(404).json({ message: 'User not found' });
+
+    target.isBlocked = false;
+    await target.save();
+
+    res.json({ message: 'User unblocked', userId: target._id, isBlocked: target.isBlocked });
+  } catch (error) {
+    res.status(500).json({ message: 'Error unblocking user', error: error.message });
+  }
+};
+
+exports.adminRemoveUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const target = await User.findById(id);
+    if (!target) return res.status(404).json({ message: 'User not found' });
+
+    await User.findByIdAndDelete(id);
+
+    res.json({ message: 'User removed', userId: id });
+  } catch (error) {
+    res.status(500).json({ message: 'Error removing user', error: error.message });
+  }
+};
+

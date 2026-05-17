@@ -1,6 +1,7 @@
 const { verifyToken } = require('../utils/jwt');
+const User = require('../models/User');
 
-const auth = (req, res, next) => {
+const auth = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
 
@@ -14,6 +15,16 @@ const auth = (req, res, next) => {
     }
 
     req.user = decoded;
+
+    // Privacy/Security: block prevented access to all protected routes
+    const authUser = await User.findById(req.user.id).select('isBlocked');
+    if (!authUser) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    if (authUser.isBlocked) {
+      return res.status(403).json({ message: 'Account is blocked' });
+    }
+
     next();
   } catch (error) {
     res.status(500).json({ message: 'Authentication error', error: error.message });
@@ -21,3 +32,4 @@ const auth = (req, res, next) => {
 };
 
 module.exports = auth;
+

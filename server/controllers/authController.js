@@ -34,7 +34,8 @@ exports.register = async (req, res) => {
     });
 
     await user.save();
-    const token = generateToken(user._id);
+    const token = generateToken({ id: user._id, role: user.role });
+
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -69,7 +70,13 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    const token = generateToken(user._id);
+    if (user.isBlocked) {
+      return res.status(403).json({ message: 'Account is blocked' });
+    }
+
+
+    const token = generateToken({ id: user._id, role: user.role });
+
 
     res.json({
       message: 'Login successful',
@@ -78,8 +85,11 @@ exports.login = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        role: user.role,
+        isBlocked: user.isBlocked,
       },
     });
+
   } catch (error) {
     res.status(500).json({ message: 'Error logging in', error: error.message });
   }
@@ -96,7 +106,12 @@ exports.getUserProfile = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json(user);
+    res.json({
+      ...user.toObject?.() ?? user,
+      role: user.role,
+      isBlocked: user.isBlocked,
+    });
+
   } catch (error) {
     res.status(500).json({ message: 'Error fetching user profile', error: error.message });
   }

@@ -62,9 +62,21 @@ const userSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+
+    // Admin / moderation
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
+    },
+    isBlocked: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
+
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {

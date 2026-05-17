@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { FaPaperPlane, FaArrowLeft, FaVideo, FaPhoneSlash, FaUserFriends } from 'react-icons/fa';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
+
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 
@@ -413,13 +414,22 @@ const ChatPage = () => {
           {selectedUser && (
             <div className="flex flex-wrap items-center gap-3">
               <motion.button
-                onClick={callUser}
+                onClick={() => {
+                  // On mobile: open dedicated video call page
+                  if (window.innerWidth < 768) {
+                    navigate(`/video/${selectedUserId}`);
+                    return;
+                  }
+                  // On desktop/tablet: keep old in-page video UI
+                  callUser();
+                }}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-3 rounded-full font-semibold transition shadow-lg"
               >
                 <FaVideo className="inline-block mr-2" /> Start Video Call
               </motion.button>
+
               {callAccepted && (
                 <motion.button
                   onClick={endCall}
