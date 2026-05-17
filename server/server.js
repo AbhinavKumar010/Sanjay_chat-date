@@ -10,6 +10,7 @@ const userRoutes = require('./routes/userRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const subscriptionRoutes = require('./routes/subscriptionRoutes');
 
 
 dotenv.config();
@@ -139,6 +140,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Server is running', timestamp: new Date() });

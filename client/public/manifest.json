@@ -3,12 +3,12 @@
   "name": "Dating & Chat App",
   "icons": [
     {
-      "src": "icon-192.svg",
+      "src": "icon-192.svg.jpeg",
       "sizes": "192x192",
       "type": "image/svg+xml"
     },
     {
-      "src": "icon-512.svg",
+      "src": "icon-512.svg.jpeg",
       "sizes": "512x512",
       "type": "image/svg+xml"
     }

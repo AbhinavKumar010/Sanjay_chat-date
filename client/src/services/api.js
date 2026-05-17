@@ -51,4 +51,12 @@ export const adminService = {
   removeUser: (id) => apiClient.delete(`/admin/users/${id}`),
 };
 
+export const subscriptionService = {
+  getActiveTerms: () => apiClient.get('/subscriptions/terms/active'),
+  acceptTerms: (data) => apiClient.post('/subscriptions/terms/accept', data),
+  createCheckout: (data) => apiClient.post('/subscriptions/checkout', data),
+  getMySubscription: () => apiClient.get('/subscriptions/me'),
+};
+
 export default apiClient;
+

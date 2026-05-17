@@ -5,7 +5,11 @@ const upload = require('../middleware/upload');
 
 const router = express.Router();
 
-router.post('/register', upload.single('profilePhoto'), authController.register);
+router.post('/register', (req, res, next) => upload.single('profilePhoto')(req, res, (err) => {
+  if (err) return res.status(400).json({ message: err.message });
+  return authController.register(req, res, next);
+}), authController.register);
+
 router.post('/login', authController.login);
 router.get('/profile', auth, authController.getUserProfile);
 router.put('/profile', auth, upload.single('profilePhoto'), authController.updateUserProfile);

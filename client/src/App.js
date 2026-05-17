@@ -12,7 +12,10 @@ import ProfilePage from './pages/ProfilePage';
 import NotificationsPage from './pages/NotificationsPage';
 import VideoCallPage from './pages/VideoCallPage';
 import AdminDashboard from './pages/AdminDashboard';
+import TermsAndConditionsPage from './pages/TermsAndConditionsPage';
+import SubscriptionPage from './pages/SubscriptionPage';
 import './App.css';
+
 
 
 
@@ -96,6 +99,24 @@ const AppRoutes = () => {
         element={
           <PrivateRoute>
             <AdminDashboard />
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/terms"
+        element={
+          <PrivateRoute>
+            <TermsAndConditionsPage />
+          </PrivateRoute>
+        }
+      />
+
+      <Route
+        path="/subscription"
+        element={
+          <PrivateRoute>
+            <SubscriptionPage />
           </PrivateRoute>
         }
       />
