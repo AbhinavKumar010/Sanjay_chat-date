@@ -59,7 +59,7 @@ const AppRoutes = () => {
         }
       />
       <Route
-        path="/video/:userId"
+        path="/video-call/:userId"
         element={
           <PrivateRoute>
             <VideoCallPage />

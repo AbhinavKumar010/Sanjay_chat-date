@@ -2,132 +2,231 @@ import React, { useEffect, useRef, useState } from 'react';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { FaArrowLeft, FaPhoneSlash, FaUserFriends } from 'react-icons/fa';
+import {
+  FaArrowLeft,
+  FaPhoneSlash,
+  FaUserFriends,
+} from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
-import { useNavigate, useParams } from 'react-router-dom';
 
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
+import {
+  useNavigate,
+  useParams,
+  useLocation,
+} from 'react-router-dom';
+
+const SOCKET_URL =
+  process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
 
 const VideoCallPage = () => {
   const { user } = useAuth();
+
   const userId = user?._id || user?.id;
 
-
-
   const { userId: targetUserId } = useParams();
+
   const navigate = useNavigate();
 
-  const [call, setCall] = useState({ isReceivingCall: false, from: null, name: '', signal: null });
-  const [callAccepted, setCallAccepted] = useState(false);
-  const [callEnded, setCallEnded] = useState(false);
+  const location = useLocation();
 
-  const [remoteStreamActive, setRemoteStreamActive] = useState(false);
-  const [isCalling, setIsCalling] = useState(false);
+  // =========================
+  // INCOMING CALL DATA
+  // =========================
+
+  const incomingCall = location.state?.incomingCall;
+
+  const incomingCallData = location.state?.callData;
+
+  // =========================
+  // STATES
+  // =========================
+
+  const [call, setCall] = useState({
+    isReceivingCall: false,
+    from: null,
+    name: '',
+    signal: null,
+  });
+
+  const [callAccepted, setCallAccepted] =
+    useState(false);
+
+  const [callEnded, setCallEnded] =
+    useState(false);
+
+  const [remoteStreamActive, setRemoteStreamActive] =
+    useState(false);
+
+  const [isCalling, setIsCalling] =
+    useState(false);
+
+  // =========================
+  // REFS
+  // =========================
 
   const localVideoRef = useRef(null);
+
   const remoteVideoRef = useRef(null);
 
   const socketRef = useRef(null);
+
   const peerRef = useRef(null);
+
   const localStreamRef = useRef(null);
 
-  const selectedUserRef = useRef(targetUserId);
+  // =========================
+  // SOCKET
+  // =========================
 
   useEffect(() => {
-    selectedUserRef.current = targetUserId;
-  }, [targetUserId]);
+    if (!userId) return;
 
-  useEffect(() => {
-    if (!userId || !targetUserId) return;
-
-    // Create a new socket each time we have both IDs.
-    // (Prevents duplicate listeners across re-renders)
     socketRef.current = io(SOCKET_URL, {
       transports: ['websocket'],
+      withCredentials: true,
     });
-
 
     socketRef.current.on('connect', () => {
+      console.log('socket connected');
+
       socketRef.current.emit('join', userId);
-      // eslint-disable-next-line no-console
-      console.log('[socket] connected, joined as', userId);
     });
 
-    socketRef.current.on('incoming_call', async (data) => {
-      if (data.to !== userId) return;
+    // =========================
+    // ANSWER RECEIVED
+    // =========================
 
-      // Always persist call notification when it is for this user.
+    socketRef.current.on('answer_made', async (data) => {
+      if (!peerRef.current) return;
+
       try {
-        const toMe = String(data.to) === String(userId);
-        if (toMe) {
-          await apiClient.post('/notifications/quick', {
-            type: 'call',
-            fromId: data.from,
-            content: data.name || '',
-          });
-        }
-      } catch (e) {
-        console.error('[notif/quick][call] failed:', e?.response?.data || e?.message || e);
+        await peerRef.current.setRemoteDescription(
+          new RTCSessionDescription(data.answer)
+        );
+
+        setCallAccepted(true);
+
+        setIsCalling(false);
+      } catch (error) {
+        console.error(error);
       }
-
-      setCall({ isReceivingCall: true, from: data.from, name: data.name, signal: data.offer });
     });
 
-    socketRef.current.on('answer_made', (data) => {
-      // eslint-disable-next-line no-console
-      console.log('[socket] answer_made', data);
-      handleAnswer(data);
+    // =========================
+    // ICE CANDIDATE
+    // =========================
+
+    socketRef.current.on('ice_candidate', async (data) => {
+      if (!peerRef.current) return;
+
+      try {
+        await peerRef.current.addIceCandidate(
+          new RTCIceCandidate(data.candidate)
+        );
+      } catch (error) {
+        console.error(error);
+      }
     });
 
-    socketRef.current.on('ice_candidate', (data) => {
-      // eslint-disable-next-line no-console
-      console.log('[socket] ice_candidate', data);
-      handleIceCandidate(data);
+    // =========================
+    // CALL ENDED
+    // =========================
+
+    socketRef.current.on('call_ended', () => {
+      endCall();
     });
-
-    socketRef.current.on('call_ended', (data) => {
-      // eslint-disable-next-line no-console
-      console.log('[socket] call_ended', data);
-      handleCallEnded(data);
-    });
-
-
 
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
+
       endCall();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, targetUserId]);
+  }, [userId]);
+
+  // =========================
+  // SET INCOMING CALL
+  // =========================
+
+  useEffect(() => {
+    if (incomingCall && incomingCallData) {
+      setCall({
+        isReceivingCall: true,
+        from: incomingCallData.from,
+        name: incomingCallData.name,
+        signal: incomingCallData.offer,
+      });
+    }
+  }, [incomingCall, incomingCallData]);
+
+  // =========================
+  // AUTO START CALL
+  // =========================
+
+  useEffect(() => {
+    if (
+      targetUserId &&
+      userId &&
+      !incomingCall
+    ) {
+      callUser();
+    }
+  }, [targetUserId, userId]);
+
+  // =========================
+  // GET CAMERA
+  // =========================
 
   const getLocalStream = async () => {
-    if (localStreamRef.current) return localStreamRef.current;
+    if (localStreamRef.current) {
+      return localStreamRef.current;
+    }
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
     localStreamRef.current = stream;
+
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = stream;
     }
+
     return stream;
   };
 
+  // =========================
+  // CREATE PEER
+  // =========================
+
   const createPeerConnection = (targetId) => {
     const peer = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      iceServers: [
+        {
+          urls: 'stun:stun.l.google.com:19302',
+        },
+      ],
     });
+
+    // REMOTE VIDEO
 
     peer.ontrack = (event) => {
       if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
+        remoteVideoRef.current.srcObject =
+          event.streams[0];
+
         setRemoteStreamActive(true);
       }
     };
 
+    // ICE
+
     peer.onicecandidate = (event) => {
-      if (event.candidate && socketRef.current) {
+      if (event.candidate) {
         socketRef.current.emit('ice_candidate', {
           to: targetId,
           candidate: event.candidate,
@@ -135,265 +234,311 @@ const VideoCallPage = () => {
       }
     };
 
-    const localStream = localStreamRef.current;
+    // LOCAL TRACKS
+
+    const localStream =
+      localStreamRef.current;
+
     if (localStream) {
-      localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
+      localStream
+        .getTracks()
+        .forEach((track) => {
+          peer.addTrack(track, localStream);
+        });
     }
 
     peerRef.current = peer;
+
     return peer;
   };
 
+  // =========================
+  // CALL USER
+  // =========================
+
   const callUser = async () => {
-    if (!targetUserId) {
-      toast.error('No user selected');
-      return;
-    }
-    setIsCalling(true);
-    setCallEnded(false);
+    if (!targetUserId) return;
 
     try {
+      setIsCalling(true);
+
+      setCallEnded(false);
+
       await getLocalStream();
-      const peer = createPeerConnection(targetUserId);
-      const offer = await peer.createOffer();
+
+      const peer =
+        createPeerConnection(targetUserId);
+
+      const offer =
+        await peer.createOffer();
+
       await peer.setLocalDescription(offer);
 
-      if (socketRef.current) {
-        socketRef.current.emit('call_user', {
-          to: targetUserId,
-          from: userId,
-          name: user?.name || 'Anonymous',
-          offer,
-        });
-      }
+      socketRef.current.emit('call_user', {
+        to: targetUserId,
+        from: userId,
+        name: user?.name || 'User',
+        offer,
+      });
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Error starting call:', error);
-      toast.error('Unable to start video call');
-      setIsCalling(false);
+      console.error(error);
+
+      toast.error(
+        'Unable to start video call'
+      );
     }
   };
+
+  // =========================
+  // ANSWER CALL
+  // =========================
 
   const answerCall = async () => {
-    if (!call?.from || !call?.signal) return;
-
-    setCallAccepted(true);
-    setIsCalling(true);
-
     try {
+      setCallAccepted(true);
+
+      setIsCalling(true);
+
       await getLocalStream();
-      const peer = createPeerConnection(call.from);
-      await peer.setRemoteDescription(new RTCSessionDescription(call.signal));
-      const answer = await peer.createAnswer();
+
+      const peer =
+        createPeerConnection(call.from);
+
+      await peer.setRemoteDescription(
+        new RTCSessionDescription(call.signal)
+      );
+
+      const answer =
+        await peer.createAnswer();
+
       await peer.setLocalDescription(answer);
 
-      if (socketRef.current) {
-        socketRef.current.emit('make_answer', {
-          to: call.from,
-          answer,
-        });
-      }
+      socketRef.current.emit('make_answer', {
+        to: call.from,
+        answer,
+      });
+
+      setCall((prev) => ({
+        ...prev,
+        isReceivingCall: false,
+      }));
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Error answering call:', error);
-      toast.error('Unable to answer video call');
-    } finally {
-      setCall((prev) => ({ ...prev, isReceivingCall: false }));
+      console.error(error);
+
+      toast.error(
+        'Unable to answer call'
+      );
     }
   };
 
-  const handleAnswer = async (data) => {
-    if (!peerRef.current) return;
-    try {
-      await peerRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
-      setCallAccepted(true);
-      setIsCalling(false);
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Error setting remote description:', error);
-    }
-  };
-
-  const handleIceCandidate = async (data) => {
-    if (!peerRef.current) return;
-
-    if (!data?.candidate) {
-      // eslint-disable-next-line no-console
-      console.warn('[webrtc][ice] cannot add candidate; missing data.candidate', data);
-      return;
-    }
-
-    try {
-      await peerRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('[webrtc][ice] Error adding ICE candidate:', error, 'payload:', data);
-    }
-  };
+  // =========================
+  // END CALL
+  // =========================
 
   const endCall = () => {
     try {
-      if (socketRef.current && targetUserId) {
-        socketRef.current.emit('end_call', { to: targetUserId });
-      }
-    } catch {
-      // ignore
-    }
+      socketRef.current.emit('end_call', {
+        to: targetUserId || call.from,
+      });
+    } catch {}
 
     if (peerRef.current) {
       peerRef.current.close();
+
       peerRef.current = null;
     }
 
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current
+        .getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+
       localStreamRef.current = null;
     }
 
     setCallAccepted(false);
+
     setIsCalling(false);
+
     setRemoteStreamActive(false);
-    setCall({ isReceivingCall: false, from: null, name: '', signal: null });
+
     setCallEnded(true);
+
+    setCall({
+      isReceivingCall: false,
+      from: null,
+      name: '',
+      signal: null,
+    });
   };
 
-  const handleCallEnded = (data) => {
-    // Best-effort: if the server sends {to}
-    if (data?.to && String(data.to) !== String(userId)) return;
-    endCall();
-    toast('Call ended');
-  };
-
-  const headerTitle = call?.isReceivingCall
-    ? `Incoming call from ${call.name}`
-    : 'Video Call';
+  // =========================
+  // UI
+  // =========================
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700 flex flex-col">
-      <div className="p-6 border-b border-gray-700 flex items-center justify-between gap-3">
+    <div className="min-h-screen bg-black flex flex-col">
+
+      {/* HEADER */}
+
+      <div className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+
         <button
           onClick={() => {
             endCall();
+
             navigate('/chat');
           }}
-          className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-full font-semibold transition flex items-center gap-2"
+          className="text-white bg-gray-800 hover:bg-gray-700 p-3 rounded-full"
         >
-          <FaArrowLeft /> Back
+          <FaArrowLeft />
         </button>
-        <h2 className="text-2xl font-bold text-white">{headerTitle}</h2>
-        <div className="w-10" />
-      </div>
 
-      <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4">
-              <p className="text-gray-400 mb-3">Local camera</p>
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-56 md:h-80 rounded-2xl bg-black"
-              />
-            </div>
+        <div className="text-center">
 
-            <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4">
-              <p className="text-gray-400 mb-3">Remote stream</p>
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                className="w-full h-56 md:h-80 rounded-2xl bg-black"
-              />
+          <h2 className="text-white text-2xl font-bold">
+            {call?.name || 'Video Call'}
+          </h2>
 
-              {!remoteStreamActive && (
-                <p className="text-gray-500 text-sm mt-3">
-                  Remote video will appear here once connected.
-                </p>
-              )}
-            </div>
-          </div>
+          <p className="text-gray-400 text-sm mt-1">
 
-          <div className="mt-4">
-            {call.isReceivingCall && (
-              <div className="rounded-3xl bg-purple-900/90 border border-purple-700 p-4 text-white">
-                <p className="font-semibold">Incoming call from {call.name}</p>
-                <div className="mt-4 flex gap-3">
-                  <button
-                    onClick={answerCall}
-                    className="flex-1 bg-green-500 hover:bg-green-600 rounded-full py-3 font-semibold"
-                  >
-                    Answer
-                  </button>
-                  <button
-                    onClick={endCall}
-                    className="flex-1 bg-red-500 hover:bg-red-600 rounded-full py-3 font-semibold"
-                  >
-                    Decline
-                  </button>
-                </div>
-              </div>
-            )}
+            {callAccepted
+              ? 'Connected'
+              : isCalling
+              ? 'Calling...'
+              : call.isReceivingCall
+              ? 'Incoming Call'
+              : 'Connecting'}
 
-            {callAccepted && (
-              <div className="rounded-3xl bg-green-900/80 border border-green-700 p-4 text-white mt-4">
-                <p className="flex items-center gap-2">
-                  <span className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-green-300" />
-                  Video call active.
-                </p>
-              </div>
-            )}
-
-            {callEnded && (
-              <div className="rounded-3xl bg-red-900/80 border border-red-700 p-4 text-white mt-4">
-                <p>Call ended.</p>
-              </div>
-            )}
-
-            {!callAccepted && !call.isReceivingCall && !callEnded && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="rounded-3xl bg-gray-900/60 border border-gray-700 p-4 text-white mt-4"
-              >
-                <p className="text-gray-300">
-                  {isCalling ? 'Connecting...' : 'Preparing call...'}
-                </p>
-              </motion.div>
-            )}
-          </div>
+          </p>
         </div>
 
-        <div className="w-full md:w-96 border-t md:border-l border-gray-700 bg-gray-950 p-4 overflow-y-auto">
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <h3 className="text-xl md:text-2xl text-white font-semibold">Controls</h3>
-            {callAccepted && (
-              <button
-                onClick={endCall}
-                className="bg-red-500 text-white px-3 py-2 rounded-full font-semibold transition shadow-lg active:scale-95 flex items-center gap-2"
-              >
-                <FaPhoneSlash /> End
-              </button>
-            )}
-          </div>
+        <button
+          onClick={endCall}
+          className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full"
+        >
+          <FaPhoneSlash />
+        </button>
+      </div>
 
-          {targetUserId ? (
-            <div className="rounded-3xl bg-gray-900 border border-gray-700 p-4 text-white">
-              <p className="text-gray-400 mb-2">Calling</p>
-              <p className="font-semibold break-all">{targetUserId}</p>
-            </div>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 px-6 py-12">
-              <FaUserFriends className="text-6xl mb-4" />
-              <p className="text-xl font-semibold">No user selected.</p>
+      {/* VIDEO AREA */}
+
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+
+        {/* REMOTE VIDEO */}
+
+        <div className="flex-1 relative bg-gray-950">
+
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="w-full h-full object-cover"
+          />
+
+          {!remoteStreamActive && (
+            <div className="absolute inset-0 flex items-center justify-center text-gray-500 flex-col">
+
+              <FaUserFriends className="text-7xl mb-4" />
+
+              <p className="text-xl">
+                Waiting for video...
+              </p>
             </div>
           )}
         </div>
+
+        {/* LOCAL VIDEO */}
+
+        <div className="absolute bottom-6 right-6 w-36 md:w-60 rounded-3xl overflow-hidden border-2 border-white shadow-2xl bg-black">
+
+          <video
+            ref={localVideoRef}
+            autoPlay
+            muted
+            playsInline
+            className="w-full h-48 object-cover"
+          />
+        </div>
       </div>
+
+      {/* INCOMING CALL */}
+
+      {call.isReceivingCall && !callAccepted && (
+        <motion.div
+          initial={{
+            opacity: 0,
+            y: 100,
+          }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 border border-gray-700 rounded-3xl p-6 text-white w-[90%] max-w-md"
+        >
+
+          <h3 className="text-2xl font-bold text-center">
+            Incoming Video Call
+          </h3>
+
+          <p className="text-center text-gray-400 mt-2">
+            {call.name} is calling you
+          </p>
+
+          <div className="flex gap-4 mt-6">
+
+            <button
+              onClick={answerCall}
+              className="flex-1 bg-green-500 hover:bg-green-600 py-4 rounded-full font-bold"
+            >
+              Answer
+            </button>
+
+            <button
+              onClick={() => {
+                endCall();
+
+                navigate('/chat');
+              }}
+              className="flex-1 bg-red-500 hover:bg-red-600 py-4 rounded-full font-bold"
+            >
+              Decline
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* CALL ENDED */}
+
+      {callEnded && (
+        <motion.div
+          initial={{
+            opacity: 0,
+          }}
+          animate={{
+            opacity: 1,
+          }}
+          className="absolute inset-0 bg-black/80 flex items-center justify-center"
+        >
+          <div className="bg-gray-900 p-8 rounded-3xl text-center text-white">
+
+            <h2 className="text-3xl font-bold">
+              Call Ended
+            </h2>
+
+            <button
+              onClick={() => navigate('/chat')}
+              className="mt-6 bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-full"
+            >
+              Back to Chat
+            </button>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 };
 
 export default VideoCallPage;
-
