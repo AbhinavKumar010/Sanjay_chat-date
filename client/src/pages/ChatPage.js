@@ -253,8 +253,8 @@ const ChatPage = () => {
 
         // OPEN VIDEO PAGE
 
-        navigate(
-          `/video-call/${data.from}`,
+navigate(
+          `/video/${data.from}`,
           {
             state: {
               incomingCall: true,
@@ -462,8 +462,8 @@ const ChatPage = () => {
         {selectedUserId && (
           <button
             onClick={() =>
-              navigate(
-                `/video-call/${selectedUserId}`,
+navigate(
+                `/video/${selectedUserId}`,
                 {
                   state: {
                     userName:
