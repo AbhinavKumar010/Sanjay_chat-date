@@ -573,86 +573,49 @@ const VideoCallPage = () => {
   // END CALL
   // =========================
 
-  const endCall = (
-    emit = true
-  ) => {
-
-    try {
-
-      if (
-        emit &&
-        socketRef.current
-      ) {
-
-        socketRef.current.emit(
-          'end_call',
-          {
-            to:
-              targetUserId ||
-              call.from,
-          }
-        );
-
-      }
-
-    } catch (error) {
-
-      console.log(
-        error
-      );
-
-    }
-
-    // CLOSE PEER
-
-    if (peerRef.current) {
-
-      peerRef.current.close();
-
-      peerRef.current =
-        null;
-
-    }
-
-    // STOP CAMERA
-
-    if (
-      localStreamRef.current
-    ) {
-
-      localStreamRef.current
-        .getTracks()
-        .forEach(
-          (track) => {
-            track.stop();
-          }
-        );
-
-      localStreamRef.current =
-        null;
-
-    }
-
-    // RESET
-
-    setCallAccepted(
-      false
-    );
-
-    setIsCalling(false);
-
-    setRemoteStreamActive(
-      false
-    );
-
-    setCallEnded(true);
-
-    setCall({
-      isReceivingCall: false,
-      from: null,
-      name: '',
-      signal: null,
+ const endCall = () => {
+  try {
+    socketRef.current?.emit('end_call', {
+      to: targetUserId || call.from,
     });
+  } catch (e) {}
+
+  // ❌ Close peer connection
+  if (peerRef.current) {
+    peerRef.current.ontrack = null;
+    peerRef.current.onicecandidate = null;
+    peerRef.current.close();
+    peerRef.current = null;
+  }
+
+  // ❌ STOP CAMERA + MIC PROPERLY
+  const stream = localStreamRef.current;
+
+if (stream) {
+  stream.getTracks().forEach(track => track.stop());
+}
+  
+
+  // ❌ REMOVE VIDEO TAG STREAMS
+  if (localVideoRef.current) {
+    localVideoRef.current.srcObject = null;
+  }
+
+  if (remoteVideoRef.current) {
+    remoteVideoRef.current.srcObject = null;
+  }
+
+  setCallAccepted(false);
+  setIsCalling(false);
+  setRemoteStreamActive(false);
+  setCallEnded(true);
+
+  setCall({
+    isReceivingCall: false,
+    from: null,
+    name: '',
+    signal: null,
+  });
 
     // AUTO BACK
 
