@@ -52,6 +52,19 @@ io.on('connection', (socket) => {
   });
 
 
+  socket.on('typing', (data) => {
+    try {
+      const receiverSocketId = onlineUsers.get(data.receiverId);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit('typing', {
+          senderId: data.senderId,
+        });
+      }
+    } catch (e) {
+      console.error('Error handling typing', e);
+    }
+  });
+
   socket.on('send_message', async (data) => {
     try {
       const notificationController = require('./controllers/notificationController');

@@ -20,6 +20,9 @@ const ChatPage = () => {
 
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimeoutRef = useRef(null);
+  const typingUserIdRef = useRef(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [call, setCall] = useState({ isReceivingCall: false, from: null, name: '', signal: null });
   const [callAccepted, setCallAccepted] = useState(false);
@@ -84,6 +87,22 @@ const ChatPage = () => {
       socketRef.current.emit('join', userId);
       // eslint-disable-next-line no-console
       console.log('[socket] connected, joined as', userId);
+    });
+
+    socketRef.current.on('typing', (data) => {
+      const activePeerId = selectedUserRef.current;
+      if (!activePeerId) return;
+
+      // Only show typing for the currently opened chat.
+      if (String(data.senderId) !== String(activePeerId)) return;
+
+      typingUserIdRef.current = data.senderId;
+      setIsTyping(true);
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        setIsTyping(false);
+      }, 2000);
     });
 
     socketRef.current.on('receive_message', async (data) => {
@@ -216,6 +235,15 @@ const ChatPage = () => {
     } finally {
       setLoadingMessages(false);
     }
+  };
+
+  const emitTyping = () => {
+    if (!socketRef.current || !selectedUserId || !messageText.trim()) return;
+
+    socketRef.current.emit('typing', {
+      receiverId: selectedUserId,
+      senderId: userId,
+    });
   };
 
   const handleSendMessage = async (e) => {
@@ -490,6 +518,10 @@ const ChatPage = () => {
             ))
           )}
 
+          {isTyping && (
+            <div className="text-sm text-gray-400">Typing...</div>
+          )}
+
           <div ref={messagesEndRef} />
         </>
       ) : (
@@ -513,7 +545,18 @@ const ChatPage = () => {
       <input
         type="text"
         value={messageText}
-        onChange={(e) => setMessageText(e.target.value)}
+        onChange={(e) => {
+          const val = e.target.value;
+          setMessageText(val);
+
+          // Emit typing indicator while the user is typing.
+          if (socketRef.current && selectedUserId && userId && val.trim()) {
+            socketRef.current.emit('typing', {
+              receiverId: selectedUserId,
+              senderId: userId,
+            });
+          }
+        }}
         placeholder={
           selectedUser
             ? `Message ${selectedUser.name}...`

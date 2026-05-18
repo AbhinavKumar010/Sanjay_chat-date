@@ -6,8 +6,9 @@ exports.quickCreate = async (req, res) => {
   try {
     const { type, fromId, content = '' } = req.body;
 
+    const ownerId = req.user?.id || req.user?._id;
     await notificationController.createNotification({
-      ownerId: req.user.id,
+      ownerId,
       fromId,
       type,
       content,

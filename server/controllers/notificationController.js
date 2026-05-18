@@ -13,7 +13,11 @@ exports.createNotification = async ({ ownerId, fromId, type, content = '' }) => 
 
 exports.getMyNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ owner: req.user.id })
+    // Support both req.user.id and req.user._id depending on auth middleware shape.
+    const ownerId = req.user?.id || req.user?._id;
+    if (!ownerId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const notifications = await Notification.find({ owner: ownerId })
       .sort({ createdAt: -1 })
       .limit(50)
       .populate('from', 'name profilePhoto');
