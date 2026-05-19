@@ -89,7 +89,8 @@ const ChatPage = () => {
           'User',
       });
     }
-  }, []);
+  }, [params?.userId, location.state?.userId, location.state?.name]);
+
 
   // =========================
   // AUTO SCROLL
@@ -284,9 +285,26 @@ const ChatPage = () => {
     }
   }, [selectedUserId]);
 
+  const clearChatHistory = async () => {
+    if (!selectedUserId) return;
+
+    try {
+      setLoadingMessages(true);
+      await apiClient.delete(`/messages/conversation/${selectedUserId}/clear`);
+      setMessages([]);
+      toast.success('Chat history cleared');
+    } catch (e) {
+      console.error(e);
+      toast.error('Unable to clear chat history');
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
   const fetchMessages = async (
     chatUserId
   ) => {
+
     try {
       setLoadingMessages(true);
 
@@ -434,7 +452,8 @@ const ChatPage = () => {
 
       <div className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
 
-        <div>
+        <div className="flex items-start gap-4">
+
 
           <h2 className="text-2xl font-bold text-white">
 
@@ -454,21 +473,31 @@ const ChatPage = () => {
           </p>
         </div>
 
-        {/* VIDEO BUTTON */}
+        {/* VIDEO BUTTON + CLEAR CHAT */}
 
         {selectedUserId && (
-          <button
-            onClick={() =>
-              navigate(`/video-call/${selectedUserId}`, {
-                state: {
-                  userName: selectedUser?.name,
-                },
-              })
-            }
-            className="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-full transition"
-          >
-            <FaVideo />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={clearChatHistory}
+              className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full transition"
+              title="Clear chat history"
+            >
+              Clear
+            </button>
+
+            <button
+              onClick={() =>
+                navigate(`/video-call/${selectedUserId}`, {
+                  state: {
+                    userName: selectedUser?.name,
+                  },
+                })
+              }
+              className="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-full transition"
+            >
+              <FaVideo />
+            </button>
+          </div>
         )}
       </div>
 

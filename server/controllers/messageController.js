@@ -58,7 +58,28 @@ exports.markAsRead = async (req, res) => {
   }
 };
 
+// Delete chat history for the current user (only messages where current user is sender)
+exports.clearChatHistory = async (req, res) => {
+  try {
+    const { userId: otherUserId } = req.params;
+
+    if (!otherUserId) {
+      return res.status(400).json({ message: 'Missing userId' });
+    }
+
+    await Message.deleteMany({
+      sender: req.user.id,
+      receiver: otherUserId,
+    });
+
+    res.json({ message: 'Chat history cleared' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error clearing chat history', error: error.message });
+  }
+};
+
 exports.getConversations = async (req, res) => {
+
   try {
     const messages = await Message.aggregate([
       {

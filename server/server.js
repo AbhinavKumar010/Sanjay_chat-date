@@ -12,6 +12,7 @@ const messageRoutes = require('./routes/messageRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
+const Message = require('./models/Message');
 
 dotenv.config();
 
@@ -93,32 +94,62 @@ io.on('connection', (socket) => {
 
   /* ---------------- MESSAGE ---------------- */
   socket.on('send_message', async (data) => {
-    try {
-      const notificationController = require('./controllers/notificationController');
+  try {
 
-      await notificationController.createNotification({
-        ownerId: data.receiverId,
-        fromId: data.senderId,
-        type: 'message',
-        content: data.content,
+    // SAVE MESSAGE
+    const message = await Message.create({
+      sender: data.senderId,
+      receiver: data.receiverId,
+      content: data.content,
+    });
+
+    // POPULATE
+    const populatedMessage =
+      await Message.findById(message._id)
+        .populate('sender', 'name profilePhoto')
+        .populate('receiver', 'name profilePhoto');
+
+    // NOTIFICATION
+    const notificationController =
+      require('./controllers/notificationController');
+
+    await notificationController.createNotification({
+      ownerId: data.receiverId,
+      fromId: data.senderId,
+      type: 'message',
+      content: data.content,
+    });
+
+    // SEND TO RECEIVER
+    const receiverSockets =
+      onlineUsers.get(data.receiverId);
+
+    if (receiverSockets) {
+      receiverSockets.forEach((id) => {
+        io.to(id).emit(
+          'receive_message',
+          populatedMessage
+        );
       });
-
-      const receivers = onlineUsers.get(data.receiverId);
-
-      if (receivers) {
-        receivers.forEach((id) => {
-          io.to(id).emit('receive_message', {
-            content: data.content,
-            senderId: data.senderId,
-            receiverId: data.receiverId,
-            createdAt: new Date(),
-          });
-        });
-      }
-    } catch (err) {
-      console.error(err);
     }
-  });
+
+    // SEND TO SENDER
+    const senderSockets =
+      onlineUsers.get(data.senderId);
+
+    if (senderSockets) {
+      senderSockets.forEach((id) => {
+        io.to(id).emit(
+          'receive_message',
+          populatedMessage
+        );
+      });
+    }
+
+  } catch (err) {
+    console.error(err);
+  }
+});
 
   /* ---------------- CALL USER ---------------- */
   socket.on('call_user', async (data) => {
