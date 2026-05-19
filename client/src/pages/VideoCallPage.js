@@ -28,9 +28,10 @@ import {
 
 const SOCKET_URL =
   process.env.REACT_APP_SOCKET_URL ||
-  'http://localhost:5000';
+  'https://jay-sathi.onrender.com';
 
 const VideoCallPage = () => {
+
   const { user } = useAuth();
 
   const userId =
@@ -112,9 +113,10 @@ const VideoCallPage = () => {
   // =========================
 
   useEffect(() => {
+
     if (!userId) return;
 
-    socketRef.current = io(
+    const socket = io(
       SOCKET_URL,
       {
         transports: [
@@ -124,16 +126,20 @@ const VideoCallPage = () => {
       }
     );
 
+    socketRef.current =
+      socket;
+
     // CONNECT
 
-    socketRef.current.on(
+    socket.on(
       'connect',
       () => {
+
         console.log(
           'socket connected'
         );
 
-        socketRef.current.emit(
+        socket.emit(
           'join',
           userId
         );
@@ -142,9 +148,10 @@ const VideoCallPage = () => {
 
     // ANSWER RECEIVED
 
-    socketRef.current.on(
+    socket.on(
       'answer_made',
       async (data) => {
+
         console.log(
           'answer received',
           data
@@ -154,6 +161,7 @@ const VideoCallPage = () => {
           return;
 
         try {
+
           await peerRef.current.setRemoteDescription(
             new RTCSessionDescription(
               data.answer
@@ -167,70 +175,72 @@ const VideoCallPage = () => {
           setIsCalling(
             false
           );
+
         } catch (error) {
+
           console.error(
             error
           );
+
         }
       }
     );
 
     // ICE CANDIDATE
 
-    socketRef.current.on(
+    socket.on(
       'ice_candidate',
       async (data) => {
+
         if (
           !peerRef.current
         )
           return;
 
         try {
+
           await peerRef.current.addIceCandidate(
             new RTCIceCandidate(
               data.candidate
             )
           );
+
         } catch (error) {
+
           console.error(
             error
           );
+
         }
       }
     );
 
     // CALL ENDED
 
-    socketRef.current.on(
+    socket.on(
       'call_ended',
       () => {
-        endCall(false);
+
+        cleanupCall(false);
+
       }
     );
 
     // CLEANUP
 
     return () => {
-      if (peerRef.current) {
-        peerRef.current.close();
-      }
 
-      if (
-        localStreamRef.current
-      ) {
-        localStreamRef.current
-          .getTracks()
-          .forEach((track) =>
-            track.stop()
-          );
-      }
+      cleanupMedia();
 
       if (
         socketRef.current
       ) {
+
         socketRef.current.disconnect();
+
       }
     };
+
   }, [userId]);
 
   // =========================
@@ -238,10 +248,12 @@ const VideoCallPage = () => {
   // =========================
 
   useEffect(() => {
+
     if (
       incomingCall &&
       incomingCallData
     ) {
+
       setCall({
         isReceivingCall: true,
         from:
@@ -251,7 +263,9 @@ const VideoCallPage = () => {
         signal:
           incomingCallData.offer,
       });
+
     }
+
   }, [
     incomingCall,
     incomingCallData,
@@ -262,13 +276,17 @@ const VideoCallPage = () => {
   // =========================
 
   useEffect(() => {
+
     if (
       targetUserId &&
       userId &&
       !incomingCall
     ) {
+
       callUser();
+
     }
+
   }, [
     targetUserId,
     userId,
@@ -280,31 +298,112 @@ const VideoCallPage = () => {
 
   const getLocalStream =
     async () => {
+
+      try {
+
+        if (
+          localStreamRef.current
+        ) {
+
+          return localStreamRef.current;
+
+        }
+
+        const stream =
+          await navigator.mediaDevices.getUserMedia(
+            {
+              video: true,
+              audio: true,
+            }
+          );
+
+        localStreamRef.current =
+          stream;
+
+        if (
+          localVideoRef.current
+        ) {
+
+          localVideoRef.current.srcObject =
+            stream;
+
+        }
+
+        return stream;
+
+      } catch (error) {
+
+        console.error(
+          error
+        );
+
+        toast.error(
+          'Camera or microphone permission denied'
+        );
+
+        throw error;
+      }
+    };
+
+  // =========================
+  // CLEANUP MEDIA
+  // =========================
+
+  const cleanupMedia =
+    () => {
+
+      // CLOSE PEER
+
+      if (peerRef.current) {
+
+        peerRef.current.ontrack =
+          null;
+
+        peerRef.current.onicecandidate =
+          null;
+
+        peerRef.current.close();
+
+        peerRef.current =
+          null;
+      }
+
+      // STOP STREAM
+
       if (
         localStreamRef.current
       ) {
-        return localStreamRef.current;
+
+        localStreamRef.current
+          .getTracks()
+          .forEach(
+            (track) =>
+              track.stop()
+          );
+
+        localStreamRef.current =
+          null;
       }
 
-      const stream =
-        await navigator.mediaDevices.getUserMedia(
-          {
-            video: true,
-            audio: true,
-          }
-        );
-
-      localStreamRef.current =
-        stream;
+      // CLEAR VIDEO TAGS
 
       if (
         localVideoRef.current
       ) {
+
         localVideoRef.current.srcObject =
-          stream;
+          null;
+
       }
 
-      return stream;
+      if (
+        remoteVideoRef.current
+      ) {
+
+        remoteVideoRef.current.srcObject =
+          null;
+
+      }
     };
 
   // =========================
@@ -313,13 +412,41 @@ const VideoCallPage = () => {
 
   const createPeerConnection =
     (targetId) => {
+
       const peer =
         new RTCPeerConnection(
           {
             iceServers: [
+
+              // STUN
+
               {
                 urls:
                   'stun:stun.l.google.com:19302',
+              },
+
+              // TURN
+
+              {
+                urls:
+                  'turn:openrelay.metered.ca:80',
+
+                username:
+                  'openrelayproject',
+
+                credential:
+                  'openrelayproject',
+              },
+
+              {
+                urls:
+                  'turn:openrelay.metered.ca:443',
+
+                username:
+                  'openrelayproject',
+
+                credential:
+                  'openrelayproject',
               },
             ],
           }
@@ -330,15 +457,22 @@ const VideoCallPage = () => {
       peer.ontrack = (
         event
       ) => {
+
+        console.log(
+          'remote stream received'
+        );
+
         if (
           remoteVideoRef.current
         ) {
+
           remoteVideoRef.current.srcObject =
             event.streams[0];
 
           setRemoteStreamActive(
             true
           );
+
         }
       };
 
@@ -346,9 +480,11 @@ const VideoCallPage = () => {
 
       peer.onicecandidate =
         (event) => {
+
           if (
             event.candidate
           ) {
+
             socketRef.current.emit(
               'ice_candidate',
               {
@@ -357,6 +493,46 @@ const VideoCallPage = () => {
                   event.candidate,
               }
             );
+
+          }
+        };
+
+      // CONNECTION STATE
+
+      peer.onconnectionstatechange =
+        () => {
+
+          console.log(
+            'connection state:',
+            peer.connectionState
+          );
+
+          if (
+            peer.connectionState ===
+            'connected'
+          ) {
+
+            setCallAccepted(
+              true
+            );
+
+            setIsCalling(
+              false
+            );
+
+          }
+
+          if (
+            peer.connectionState ===
+              'disconnected' ||
+            peer.connectionState ===
+              'failed' ||
+            peer.connectionState ===
+              'closed'
+          ) {
+
+            cleanupCall(false);
+
           }
         };
 
@@ -366,14 +542,17 @@ const VideoCallPage = () => {
         localStreamRef.current;
 
       if (localStream) {
+
         localStream
           .getTracks()
           .forEach(
             (track) => {
+
               peer.addTrack(
                 track,
                 localStream
               );
+
             }
           );
       }
@@ -390,12 +569,14 @@ const VideoCallPage = () => {
 
   const callUser =
     async () => {
+
       if (
         !targetUserId
       )
         return;
 
       try {
+
         setIsCalling(
           true
         );
@@ -430,7 +611,9 @@ const VideoCallPage = () => {
             offer,
           }
         );
+
       } catch (error) {
+
         console.error(
           error
         );
@@ -447,7 +630,9 @@ const VideoCallPage = () => {
 
   const answerCall =
     async () => {
+
       try {
+
         setCallAccepted(
           true
         );
@@ -492,7 +677,9 @@ const VideoCallPage = () => {
               false,
           })
         );
+
       } catch (error) {
+
         console.error(
           error
         );
@@ -504,11 +691,50 @@ const VideoCallPage = () => {
     };
 
   // =========================
+  // CLEANUP CALL
+  // =========================
+
+  const cleanupCall =
+    (showEnded = true) => {
+
+      cleanupMedia();
+
+      setCallAccepted(
+        false
+      );
+
+      setIsCalling(
+        false
+      );
+
+      setRemoteStreamActive(
+        false
+      );
+
+      if (showEnded) {
+
+        setCallEnded(
+          true
+        );
+
+      }
+
+      setCall({
+        isReceivingCall: false,
+        from: null,
+        name: '',
+        signal: null,
+      });
+    };
+
+  // =========================
   // END CALL
   // =========================
 
   const endCall = () => {
+
     try {
+
       socketRef.current?.emit(
         'end_call',
         {
@@ -517,68 +743,12 @@ const VideoCallPage = () => {
             call.from,
         }
       );
+
     } catch (e) {
+
       console.log(e);
+
     }
-
-    // CLOSE PEER
-
-    if (peerRef.current) {
-      peerRef.current.ontrack =
-        null;
-
-      peerRef.current.onicecandidate =
-        null;
-
-      peerRef.current.close();
-
-      peerRef.current =
-        null;
-    }
-
-    // STOP CAMERA + MIC
-
-    const stream =
-      localStreamRef.current;
-
-    if (stream) {
-      stream
-        .getTracks()
-        .forEach((track) => {
-          track.stop();
-        });
-
-      localStreamRef.current =
-        null;
-    }
-
-    // CLEAR VIDEO TAGS
-
-    if (
-      localVideoRef.current
-    ) {
-      localVideoRef.current.srcObject =
-        null;
-    }
-
-    if (
-      remoteVideoRef.current
-    ) {
-      remoteVideoRef.current.srcObject =
-        null;
-    }
-
-    setCallAccepted(false);
-
-    setIsCalling(false);
-
-    setRemoteStreamActive(
-      false
-    );
-
-    setCallEnded(true);
-
-    // SAVE USER DETAILS
 
     const chatUserId =
       targetUserId ||
@@ -587,18 +757,10 @@ const VideoCallPage = () => {
     const chatUserName =
       call.name || 'User';
 
-    // RESET CALL
-
-    setCall({
-      isReceivingCall: false,
-      from: null,
-      name: '',
-      signal: null,
-    });
-
-    // GO TO CHAT
+    cleanupCall(true);
 
     setTimeout(() => {
+
       navigate(
         `/chat/${chatUserId}`,
         {
@@ -611,7 +773,8 @@ const VideoCallPage = () => {
           },
         }
       );
-    }, 800);
+
+    }, 700);
   };
 
   // =========================
@@ -626,9 +789,7 @@ const VideoCallPage = () => {
       <div className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
 
         <button
-          onClick={() => {
-            endCall();
-          }}
+          onClick={endCall}
           className="text-white bg-gray-800 hover:bg-gray-700 p-3 rounded-full"
         >
           <FaArrowLeft />
@@ -637,8 +798,10 @@ const VideoCallPage = () => {
         <div className="text-center">
 
           <h2 className="text-white text-2xl font-bold">
+
             {call?.name ||
               'Video Call'}
+
           </h2>
 
           <p className="text-gray-400 text-sm mt-1">
@@ -655,9 +818,7 @@ const VideoCallPage = () => {
         </div>
 
         <button
-          onClick={() =>
-            endCall()
-          }
+          onClick={endCall}
           className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-full"
         >
           <FaPhoneSlash />
@@ -688,7 +849,9 @@ const VideoCallPage = () => {
               <FaUserFriends className="text-7xl mb-4" />
 
               <p className="text-xl">
+
                 Waiting for video...
+
               </p>
 
             </div>
@@ -712,7 +875,7 @@ const VideoCallPage = () => {
         </div>
       </div>
 
-      {/* INCOMING CALL POPUP */}
+      {/* INCOMING POPUP */}
 
       {call.isReceivingCall &&
         !callAccepted && (
@@ -753,9 +916,9 @@ const VideoCallPage = () => {
               </button>
 
               <button
-                onClick={() => {
-                  endCall();
-                }}
+                onClick={
+                  endCall
+                }
                 className="flex-1 bg-red-500 hover:bg-red-600 py-4 rounded-full font-bold"
               >
                 Decline
