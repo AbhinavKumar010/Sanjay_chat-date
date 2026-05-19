@@ -31,7 +31,6 @@ const SOCKET_URL =
   'http://localhost:5000';
 
 const VideoCallPage = () => {
-
   const { user } = useAuth();
 
   const userId =
@@ -113,7 +112,6 @@ const VideoCallPage = () => {
   // =========================
 
   useEffect(() => {
-
     if (!userId) return;
 
     socketRef.current = io(
@@ -126,14 +124,11 @@ const VideoCallPage = () => {
       }
     );
 
-    // =========================
     // CONNECT
-    // =========================
 
     socketRef.current.on(
       'connect',
       () => {
-
         console.log(
           'socket connected'
         );
@@ -142,18 +137,14 @@ const VideoCallPage = () => {
           'join',
           userId
         );
-
       }
     );
 
-    // =========================
     // ANSWER RECEIVED
-    // =========================
 
     socketRef.current.on(
       'answer_made',
       async (data) => {
-
         console.log(
           'answer received',
           data
@@ -163,7 +154,6 @@ const VideoCallPage = () => {
           return;
 
         try {
-
           await peerRef.current.setRemoteDescription(
             new RTCSessionDescription(
               data.answer
@@ -177,94 +167,70 @@ const VideoCallPage = () => {
           setIsCalling(
             false
           );
-
         } catch (error) {
-
           console.error(
             error
           );
-
         }
       }
     );
 
-    // =========================
-    // ICE
-    // =========================
+    // ICE CANDIDATE
 
     socketRef.current.on(
       'ice_candidate',
       async (data) => {
-
         if (
           !peerRef.current
         )
           return;
 
         try {
-
           await peerRef.current.addIceCandidate(
             new RTCIceCandidate(
               data.candidate
             )
           );
-
         } catch (error) {
-
           console.error(
             error
           );
-
         }
       }
     );
 
-    // =========================
     // CALL ENDED
-    // =========================
 
     socketRef.current.on(
       'call_ended',
       () => {
-
         endCall(false);
-
       }
     );
 
-    // =========================
     // CLEANUP
-    // =========================
 
     return () => {
-
       if (peerRef.current) {
-
         peerRef.current.close();
-
       }
 
       if (
         localStreamRef.current
       ) {
-
         localStreamRef.current
           .getTracks()
           .forEach((track) =>
             track.stop()
           );
-
       }
 
       if (
         socketRef.current
       ) {
-
         socketRef.current.disconnect();
-
       }
     };
-
   }, [userId]);
 
   // =========================
@@ -272,12 +238,10 @@ const VideoCallPage = () => {
   // =========================
 
   useEffect(() => {
-
     if (
       incomingCall &&
       incomingCallData
     ) {
-
       setCall({
         isReceivingCall: true,
         from:
@@ -287,9 +251,7 @@ const VideoCallPage = () => {
         signal:
           incomingCallData.offer,
       });
-
     }
-
   }, [
     incomingCall,
     incomingCallData,
@@ -300,35 +262,28 @@ const VideoCallPage = () => {
   // =========================
 
   useEffect(() => {
-
     if (
       targetUserId &&
       userId &&
       !incomingCall
     ) {
-
       callUser();
-
     }
-
   }, [
     targetUserId,
     userId,
   ]);
 
   // =========================
-  // GET STREAM
+  // GET LOCAL STREAM
   // =========================
 
   const getLocalStream =
     async () => {
-
       if (
         localStreamRef.current
       ) {
-
         return localStreamRef.current;
-
       }
 
       const stream =
@@ -345,22 +300,19 @@ const VideoCallPage = () => {
       if (
         localVideoRef.current
       ) {
-
         localVideoRef.current.srcObject =
           stream;
-
       }
 
       return stream;
     };
 
   // =========================
-  // PEER
+  // PEER CONNECTION
   // =========================
 
   const createPeerConnection =
     (targetId) => {
-
       const peer =
         new RTCPeerConnection(
           {
@@ -373,23 +325,20 @@ const VideoCallPage = () => {
           }
         );
 
-      // REMOTE VIDEO
+      // REMOTE STREAM
 
       peer.ontrack = (
         event
       ) => {
-
         if (
           remoteVideoRef.current
         ) {
-
           remoteVideoRef.current.srcObject =
             event.streams[0];
 
           setRemoteStreamActive(
             true
           );
-
         }
       };
 
@@ -397,11 +346,9 @@ const VideoCallPage = () => {
 
       peer.onicecandidate =
         (event) => {
-
           if (
             event.candidate
           ) {
-
             socketRef.current.emit(
               'ice_candidate',
               {
@@ -410,7 +357,6 @@ const VideoCallPage = () => {
                   event.candidate,
               }
             );
-
           }
         };
 
@@ -420,20 +366,16 @@ const VideoCallPage = () => {
         localStreamRef.current;
 
       if (localStream) {
-
         localStream
           .getTracks()
           .forEach(
             (track) => {
-
               peer.addTrack(
                 track,
                 localStream
               );
-
             }
           );
-
       }
 
       peerRef.current =
@@ -448,14 +390,12 @@ const VideoCallPage = () => {
 
   const callUser =
     async () => {
-
       if (
         !targetUserId
       )
         return;
 
       try {
-
         setIsCalling(
           true
         );
@@ -490,9 +430,7 @@ const VideoCallPage = () => {
             offer,
           }
         );
-
       } catch (error) {
-
         console.error(
           error
         );
@@ -509,9 +447,7 @@ const VideoCallPage = () => {
 
   const answerCall =
     async () => {
-
       try {
-
         setCallAccepted(
           true
         );
@@ -556,9 +492,7 @@ const VideoCallPage = () => {
               false,
           })
         );
-
       } catch (error) {
-
         console.error(
           error
         );
@@ -573,62 +507,111 @@ const VideoCallPage = () => {
   // END CALL
   // =========================
 
- const endCall = () => {
-  try {
-    socketRef.current?.emit('end_call', {
-      to: targetUserId || call.from,
+  const endCall = () => {
+    try {
+      socketRef.current?.emit(
+        'end_call',
+        {
+          to:
+            targetUserId ||
+            call.from,
+        }
+      );
+    } catch (e) {
+      console.log(e);
+    }
+
+    // CLOSE PEER
+
+    if (peerRef.current) {
+      peerRef.current.ontrack =
+        null;
+
+      peerRef.current.onicecandidate =
+        null;
+
+      peerRef.current.close();
+
+      peerRef.current =
+        null;
+    }
+
+    // STOP CAMERA + MIC
+
+    const stream =
+      localStreamRef.current;
+
+    if (stream) {
+      stream
+        .getTracks()
+        .forEach((track) => {
+          track.stop();
+        });
+
+      localStreamRef.current =
+        null;
+    }
+
+    // CLEAR VIDEO TAGS
+
+    if (
+      localVideoRef.current
+    ) {
+      localVideoRef.current.srcObject =
+        null;
+    }
+
+    if (
+      remoteVideoRef.current
+    ) {
+      remoteVideoRef.current.srcObject =
+        null;
+    }
+
+    setCallAccepted(false);
+
+    setIsCalling(false);
+
+    setRemoteStreamActive(
+      false
+    );
+
+    setCallEnded(true);
+
+    // SAVE USER DETAILS
+
+    const chatUserId =
+      targetUserId ||
+      call.from;
+
+    const chatUserName =
+      call.name || 'User';
+
+    // RESET CALL
+
+    setCall({
+      isReceivingCall: false,
+      from: null,
+      name: '',
+      signal: null,
     });
-  } catch (e) {}
 
-  // ❌ Close peer connection
-  if (peerRef.current) {
-    peerRef.current.ontrack = null;
-    peerRef.current.onicecandidate = null;
-    peerRef.current.close();
-    peerRef.current = null;
-  }
-
-  // ❌ STOP CAMERA + MIC PROPERLY
-  const stream = localStreamRef.current;
-
-if (stream) {
-  stream.getTracks().forEach(track => track.stop());
-}
-  
-
-  // ❌ REMOVE VIDEO TAG STREAMS
-  if (localVideoRef.current) {
-    localVideoRef.current.srcObject = null;
-  }
-
-  if (remoteVideoRef.current) {
-    remoteVideoRef.current.srcObject = null;
-  }
-
-  setCallAccepted(false);
-  setIsCalling(false);
-  setRemoteStreamActive(false);
-  setCallEnded(true);
-
-  setCall({
-    isReceivingCall: false,
-    from: null,
-    name: '',
-    signal: null,
-  });
-
-    // AUTO BACK
+    // GO TO CHAT
 
     setTimeout(() => {
-
       navigate(
-        `/chat/${
-          targetUserId ||
-          call.from
-        }`
+        `/chat/${chatUserId}`,
+        {
+          replace: true,
+          state: {
+            userId:
+              chatUserId,
+            name:
+              chatUserName,
+          },
+        }
       );
-
-    }, 1000);
+    }, 800);
   };
 
   // =========================
@@ -644,9 +627,7 @@ if (stream) {
 
         <button
           onClick={() => {
-
             endCall();
-
           }}
           className="text-white bg-gray-800 hover:bg-gray-700 p-3 rounded-full"
         >
@@ -656,10 +637,8 @@ if (stream) {
         <div className="text-center">
 
           <h2 className="text-white text-2xl font-bold">
-
             {call?.name ||
               'Video Call'}
-
           </h2>
 
           <p className="text-gray-400 text-sm mt-1">
@@ -685,11 +664,11 @@ if (stream) {
         </button>
       </div>
 
-      {/* VIDEO */}
+      {/* VIDEO AREA */}
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
 
-        {/* REMOTE */}
+        {/* REMOTE VIDEO */}
 
         <div className="flex-1 relative bg-gray-950">
 
@@ -717,7 +696,7 @@ if (stream) {
           )}
         </div>
 
-        {/* LOCAL */}
+        {/* LOCAL VIDEO */}
 
         <div className="absolute bottom-6 right-6 w-36 md:w-60 rounded-3xl overflow-hidden border-2 border-white shadow-2xl bg-black">
 
@@ -733,7 +712,7 @@ if (stream) {
         </div>
       </div>
 
-      {/* INCOMING */}
+      {/* INCOMING CALL POPUP */}
 
       {call.isReceivingCall &&
         !callAccepted && (
@@ -751,7 +730,9 @@ if (stream) {
           >
 
             <h3 className="text-2xl font-bold text-center">
+
               Incoming Video Call
+
             </h3>
 
             <p className="text-center text-gray-400 mt-2">
@@ -773,15 +754,12 @@ if (stream) {
 
               <button
                 onClick={() => {
-
                   endCall();
-
                 }}
                 className="flex-1 bg-red-500 hover:bg-red-600 py-4 rounded-full font-bold"
               >
                 Decline
               </button>
-
             </div>
 
           </motion.div>
@@ -804,7 +782,9 @@ if (stream) {
           <div className="bg-gray-900 p-8 rounded-3xl text-center text-white">
 
             <h2 className="text-3xl font-bold">
+
               Call Ended
+
             </h2>
 
           </div>

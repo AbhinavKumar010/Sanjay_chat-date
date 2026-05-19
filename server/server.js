@@ -120,29 +120,20 @@ io.on('connection', (socket) => {
       content: data.content,
     });
 
-    // SEND TO RECEIVER
-    const receiverSockets =
-      onlineUsers.get(data.receiverId);
-
+    // SEND TO RECEIVER (and sender as well, but avoid duplicates when sender==receiver)
+    const receiverSockets = onlineUsers.get(data.receiverId);
     if (receiverSockets) {
       receiverSockets.forEach((id) => {
-        io.to(id).emit(
-          'receive_message',
-          populatedMessage
-        );
+        io.to(id).emit('receive_message', populatedMessage);
       });
     }
 
-    // SEND TO SENDER
-    const senderSockets =
-      onlineUsers.get(data.senderId);
-
+    const senderSockets = onlineUsers.get(data.senderId);
     if (senderSockets) {
       senderSockets.forEach((id) => {
-        io.to(id).emit(
-          'receive_message',
-          populatedMessage
-        );
+        // prevent double-send to the same socket if receiverId === senderId
+        if (String(data.receiverId) === String(data.senderId) && receiverSockets?.has(id)) return;
+        io.to(id).emit('receive_message', populatedMessage);
       });
     }
 

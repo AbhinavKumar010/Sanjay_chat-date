@@ -82,15 +82,45 @@ const ChatPage = () => {
     if (routeUserId) {
       setSelectedUserId(routeUserId);
 
+      // TEMP NAME
       setSelectedUser({
         _id: routeUserId,
         name:
           location.state?.name ||
-          'User',
+          location.state?.userName ||
+          'Loading...',
       });
     }
-  }, [params?.userId, location.state?.userId, location.state?.name]);
+  }, [
+    params?.userId,
+    location.state?.userId,
+    location.state?.name,
+    location.state?.userName,
+  ]);
 
+  // =========================
+  // FETCH USER DETAILS
+  // =========================
+
+  const fetchUserDetails = async (id) => {
+    try {
+      const response = await apiClient.get(
+        `/users/${id}`
+      );
+
+      if (response.data) {
+        setSelectedUser(response.data);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedUserId) {
+      fetchUserDetails(selectedUserId);
+    }
+  }, [selectedUserId]);
 
   // =========================
   // AUTO SCROLL
@@ -105,169 +135,191 @@ const ChatPage = () => {
   }, [messages]);
 
   // =========================
-  // SOCKET
+  // SOCKET CONNECT
   // =========================
 
   useEffect(() => {
     if (!userId) return;
 
-    socketRef.current = io(SOCKET_URL, {
+    const socket = io(SOCKET_URL, {
       transports: ['websocket'],
       withCredentials: true,
     });
 
-    socketRef.current.on('connect', () => {
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
       console.log('socket connected');
 
-      socketRef.current.emit('join', userId);
+      socket.emit('join', userId);
     });
 
-    // =========================
-    // RECEIVE MESSAGE
-    // =========================
+    socket.on('online_users', (users) => {
+      setOnlineUsers(users);
+    });
 
-    socketRef.current.on(
-      'receive_message',
-      (message) => {
-        console.log(
-          'message received',
-          message
+    socket.on('incoming_call', async (data) => {
+      if (String(data.to) !== String(userId))
+        return;
+
+      try {
+        await apiClient.post(
+          '/notifications/quick',
+          {
+            type: 'call',
+            fromId: data.from,
+            content: data.name || '',
+          }
+        );
+      } catch (error) {
+        console.error(error);
+      }
+
+      navigate(`/video-call/${data.from}`, {
+        state: {
+          incomingCall: true,
+          callData: data,
+          userName: data.name,
+        },
+      });
+    });
+
+    return () => {
+      socket.off();
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [userId, navigate]);
+
+  // =========================
+  // SOCKET LISTENERS
+  // =========================
+
+  useEffect(() => {
+    const socket = socketRef.current;
+
+    if (!socket || !selectedUserId)
+      return;
+
+    const handleReceiveMessage = (
+      message
+    ) => {
+      const activeUser =
+        selectedUserRef.current;
+
+      const senderId = String(
+        message.senderId ??
+          message.sender?._id ??
+          ''
+      );
+
+      const receiverId = String(
+        message.receiverId ??
+          message.receiver?._id ??
+          ''
+      );
+
+      const isCurrentChat =
+        senderId === String(activeUser) ||
+        receiverId === String(activeUser);
+
+      if (!isCurrentChat) {
+        toast.success(
+          'New message received'
+        );
+        return;
+      }
+
+      setMessages((prev) => {
+        const exists = prev.some(
+          (msg) =>
+            msg._id === message._id ||
+            (msg.content ===
+              message.content &&
+              String(
+                msg.sender?._id
+              ) === senderId)
         );
 
-        const activeUser =
-          selectedUserRef.current;
+        if (exists) return prev;
 
-        const isCurrentChat =
-          String(message.senderId || message.sender?._id) === String(activeUser) ||
-          String(message.receiverId || message.receiver?._id) === String(activeUser);
-
-
-        if (!isCurrentChat) {
-          toast.success(
-            'New message received'
-          );
-
-          return;
-        }
-
-        setMessages((prev) => {
-          const exists = prev.some(
-            (msg) =>
-              msg._id ===
-                message._id ||
-              (msg.content ===
-                message.content &&
-                msg.sender?._id ===
-                  message.senderId)
-          );
-
-          if (exists) return prev;
-
-          return [
-            ...prev,
-            {
+        return [
+          ...prev,
+          {
+            _id:
+              message._id ||
+              Date.now().toString(),
+            content: message.content,
+            sender: {
               _id:
-                message._id ||
-                Date.now(),
-              content:
-                message.content,
-              sender: {
-                _id:
-                  message.senderId,
-              },
-              receiver:
-                message.receiverId,
-              createdAt:
-                message.createdAt ||
-                new Date(),
+                message.senderId ??
+                message.sender?._id,
             },
-          ];
-        });
-      }
-    );
-
-    // =========================
-    // TYPING
-    // =========================
-
-    socketRef.current.on(
-      'typing',
-      ({ senderId }) => {
-        if (
-          senderId ===
-          selectedUserRef.current
-        ) {
-          setIsTyping(true);
-        }
-      }
-    );
-
-    socketRef.current.on(
-      'stop_typing',
-      ({ senderId }) => {
-        if (
-          senderId ===
-          selectedUserRef.current
-        ) {
-          setIsTyping(false);
-        }
-      }
-    );
-
-    // =========================
-    // ONLINE USERS
-    // =========================
-
-    socketRef.current.on(
-      'online_users',
-      (users) => {
-        setOnlineUsers(users);
-      }
-    );
-
-    // =========================
-    // INCOMING VIDEO CALL
-    // =========================
-
-    socketRef.current.on(
-      'incoming_call',
-      async (data) => {
-        if (data.to !== userId)
-          return;
-
-        // SAVE NOTIFICATION
-
-        try {
-          await apiClient.post(
-            '/notifications/quick',
-            {
-              type: 'call',
-              fromId: data.from,
-              content:
-                data.name || '',
-            }
-          );
-        } catch (error) {
-          console.error(error);
-        }
-
-        // OPEN VIDEO PAGE
-
-        navigate(`/video-call/${data.from}`, {
-          state: {
-            incomingCall: true,
-            callData: data,
+            receiver:
+              message.receiverId ??
+              message.receiver?._id,
+            createdAt:
+              message.createdAt ||
+              new Date(),
           },
-        });
+        ];
+      });
+    };
+
+    const handleTyping = ({
+      senderId,
+    }) => {
+      if (
+        String(senderId) ===
+        String(selectedUserRef.current)
+      ) {
+        setIsTyping(true);
       }
+    };
+
+    const handleStopTyping = ({
+      senderId,
+    }) => {
+      if (
+        String(senderId) ===
+        String(selectedUserRef.current)
+      ) {
+        setIsTyping(false);
+      }
+    };
+
+    socket.on(
+      'receive_message',
+      handleReceiveMessage
+    );
+
+    socket.on(
+      'typing',
+      handleTyping
+    );
+
+    socket.on(
+      'stop_typing',
+      handleStopTyping
     );
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
+      socket.off(
+        'receive_message',
+        handleReceiveMessage
+      );
+
+      socket.off(
+        'typing',
+        handleTyping
+      );
+
+      socket.off(
+        'stop_typing',
+        handleStopTyping
+      );
     };
-  }, [userId]);
+  }, [selectedUserId]);
 
   // =========================
   // LOAD MESSAGES
@@ -284,26 +336,36 @@ const ChatPage = () => {
     }
   }, [selectedUserId]);
 
-  const clearChatHistory = async () => {
-    if (!selectedUserId) return;
+  const clearChatHistory =
+    async () => {
+      if (!selectedUserId) return;
 
-    try {
-      setLoadingMessages(true);
-      await apiClient.delete(`/messages/conversation/${selectedUserId}/clear`);
-      setMessages([]);
-      toast.success('Chat history cleared');
-    } catch (e) {
-      console.error(e);
-      toast.error('Unable to clear chat history');
-    } finally {
-      setLoadingMessages(false);
-    }
-  };
+      try {
+        setLoadingMessages(true);
+
+        await apiClient.delete(
+          `/messages/conversation/${selectedUserId}/clear`
+        );
+
+        setMessages([]);
+
+        toast.success(
+          'Chat history cleared'
+        );
+      } catch (e) {
+        console.error(e);
+
+        toast.error(
+          'Unable to clear chat history'
+        );
+      } finally {
+        setLoadingMessages(false);
+      }
+    };
 
   const fetchMessages = async (
     chatUserId
   ) => {
-
     try {
       setLoadingMessages(true);
 
@@ -357,8 +419,6 @@ const ChatPage = () => {
         createdAt: new Date(),
       };
 
-      // INSTANT UI
-
       setMessages((prev) => [
         ...prev,
         newMessage,
@@ -367,8 +427,6 @@ const ChatPage = () => {
       setMessageText('');
 
       try {
-        // SOCKET SEND
-
         socketRef.current.emit(
           'send_message',
           {
@@ -378,8 +436,6 @@ const ChatPage = () => {
               selectedUserId,
           }
         );
-
-        // DATABASE SAVE
 
         await apiClient.post(
           '/messages/send',
@@ -451,46 +507,50 @@ const ChatPage = () => {
 
       <div className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
 
-        <div className="flex items-start gap-4">
+        <div className="flex items-center gap-4">
 
+          <div>
+            <h2 className="text-2xl font-bold text-white">
+              {selectedUser?.name ||
+                selectedUser?.username ||
+                'Chat'}
+            </h2>
 
-          <h2 className="text-2xl font-bold text-white">
-
-            {selectedUser?.name ||
-              'Chat'}
-
-          </h2>
-
-          <p className="text-sm text-gray-400 mt-1">
-
-            {onlineUsers.includes(
-              selectedUserId
-            )
-              ? 'Online'
-              : 'Offline'}
-
-          </p>
+            <p className="text-sm text-gray-400 mt-1">
+              {onlineUsers.includes(
+                selectedUserId
+              )
+                ? 'Online'
+                : 'Offline'}
+            </p>
+          </div>
         </div>
 
-        {/* VIDEO BUTTON + CLEAR CHAT */}
+        {/* VIDEO BUTTON */}
 
         {selectedUserId && (
           <div className="flex items-center gap-2">
+
             <button
-              onClick={clearChatHistory}
-              className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full transition"
-              title="Clear chat history"
+              onClick={
+                clearChatHistory
+              }
+              className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition"
             >
               Clear
             </button>
 
             <button
               onClick={() =>
-                navigate(`/video-call/${selectedUserId}`, {
-                  state: {
-                    userName: selectedUser?.name,
-                  },
-                })
+                navigate(
+                  `/video-call/${selectedUserId}`,
+                  {
+                    state: {
+                      userName:
+                        selectedUser?.name,
+                    },
+                  }
+                )
               }
               className="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-full transition"
             >
@@ -539,24 +599,22 @@ const ChatPage = () => {
                     : 'bg-gray-700 text-white rounded-bl-none'
                 }`}
               >
-
                 <p className="break-words">
                   {msg.content}
                 </p>
 
                 <div className="text-[10px] opacity-70 text-right mt-1">
-
                   {new Date(
                     msg.createdAt
                   ).toLocaleTimeString(
                     [],
                     {
-                      hour: '2-digit',
+                      hour:
+                        '2-digit',
                       minute:
                         '2-digit',
                     }
                   )}
-
                 </div>
               </div>
             </motion.div>
