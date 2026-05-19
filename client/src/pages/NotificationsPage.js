@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
+
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
@@ -7,13 +9,16 @@ import toast from 'react-hot-toast';
 import { FaBell, FaRegCommentDots } from 'react-icons/fa';
 
 const NotificationsPage = () => {
-  // Auth is required for protected route; hook kept for future usage.
-  useAuth();
+  const { user } = useAuth();
+
+  const userId = user?._id || user?.id;
 
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const socketRef = useRef(null);
 
   const fetchNotifications = async () => {
     try {
@@ -34,7 +39,59 @@ const NotificationsPage = () => {
 
   useEffect(() => {
     fetchNotifications();
+
+    socketRef.current = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000', {
+      transports: ['websocket'],
+      withCredentials: true,
+    });
+
+    socketRef.current.on('connect', () => {
+      if (userId) {
+        socketRef.current.emit('join', userId);
+      }
+    });
+
+    socketRef.current.on('incoming_call', (data) => {
+      setNotifications((prev) => [
+        {
+          _id: data._id || Date.now().toString(),
+          type: 'call',
+          from: data.from,
+          name: data.name,
+          content: data.name || '',
+          createdAt: new Date(),
+          isRead: false,
+        },
+        ...prev,
+      ]);
+    });
+
+    socketRef.current.on('receive_message', (message) => {
+      // server emits populated Message:
+      // { _id, sender: { _id, name, ... }, receiver: {...}, content, createdAt, ... }
+      const fromUser = message?.sender;
+
+      setNotifications((prev) => [
+        {
+          _id: message._id || Date.now().toString(),
+          type: 'message',
+          from: fromUser?._id || fromUser,
+          content: message?.content,
+          createdAt: message?.createdAt || new Date(),
+          isRead: false,
+        },
+        ...prev,
+      ]);
+    });
+
+    return () => {
+      if (socketRef.current) socketRef.current.disconnect();
+    };
   }, []);
+
+
+
+
 
 
   const markRead = async (id) => {
