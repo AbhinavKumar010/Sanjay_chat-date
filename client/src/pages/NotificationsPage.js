@@ -46,12 +46,11 @@ const NotificationsPage = () => {
     });
 
     socketRef.current.on('connect', () => {
-      if (userId) {
-        socketRef.current.emit('join', userId);
-      }
+      if (userId) socketRef.current.emit('join', userId);
     });
 
     socketRef.current.on('incoming_call', (data) => {
+
       setNotifications((prev) => [
         {
           _id: data._id || Date.now().toString(),

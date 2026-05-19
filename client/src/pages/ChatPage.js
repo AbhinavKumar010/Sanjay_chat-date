@@ -138,10 +138,9 @@ const ChatPage = () => {
           selectedUserRef.current;
 
         const isCurrentChat =
-          message.senderId ===
-            activeUser ||
-          message.receiverId ===
-            activeUser;
+          String(message.senderId || message.sender?._id) === String(activeUser) ||
+          String(message.receiverId || message.receiver?._id) === String(activeUser);
+
 
         if (!isCurrentChat) {
           toast.success(
