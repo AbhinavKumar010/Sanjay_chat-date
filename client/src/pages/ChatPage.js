@@ -8,7 +8,8 @@ import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
 
 const SOCKET_URL =
-  process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000';
+  process.env.REACT_APP_SOCKET_URL ||
+  'https://jay-sathi.onrender.com';
 
 const ChatPage = () => {
   const { user } = useAuth();
@@ -77,6 +78,7 @@ const ChatPage = () => {
     if (!userId) return;
 
     const socket = io(SOCKET_URL, {
+      transports: ['websocket'],
       withCredentials: true,
     });
 
