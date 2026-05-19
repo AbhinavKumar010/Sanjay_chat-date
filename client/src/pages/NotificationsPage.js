@@ -49,15 +49,26 @@ const NotificationsPage = () => {
   const handleClickNotification = async (n) => {
     await markRead(n._id);
 
-    // Navigate to chat with sender selected
-    // ChatPage expects either route param /chat/:userId or navigation state.
+    // Remove notification immediately after click
+    setNotifications((prev) => prev.filter((x) => x._id !== n._id));
+
+    // If it's an incoming call, open VideoCallPage directly
+    if (n.type === 'call') {
+      navigate(`/video-call/${n.from._id}`, {
+        state: {
+          incomingCall: true,
+          callData: n,
+        },
+      });
+      return;
+    }
+
+    // Otherwise open chat
     navigate(`/chat/${n.from._id}`, {
       state: { userId: n.from._id },
     });
-
-    // Remove notification immediately after click
-    setNotifications((prev) => prev.filter((x) => x._id !== n._id));
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black p-6">
