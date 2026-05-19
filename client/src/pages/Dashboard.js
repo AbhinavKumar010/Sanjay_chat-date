@@ -39,13 +39,7 @@ const Dashboard = () => {
       path: '/matches',
       gradient: 'from-pink-500 to-rose-500',
     },
-    {
-      icon: FaComments,
-      label: 'Messages',
-      desc: 'Open conversations',
-      path: '/chat',
-      gradient: 'from-blue-500 to-cyan-500',
-    },
+    
     {
       icon: FaBell,
       label: 'Notifications',
