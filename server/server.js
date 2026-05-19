@@ -12,234 +12,642 @@ const messageRoutes = require('./routes/messageRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
+
 const Message = require('./models/Message');
 
 dotenv.config();
 
 const app = express();
-const server = http.createServer(app);
+
+const server =
+  http.createServer(app);
+
+/* ======================================================
+   SOCKET.IO
+====================================================== */
 
 const io = socketIO(server, {
   cors: {
-    origin: true,
-    methods: ['GET', 'POST'],
+    origin: '*',
+    methods: [
+      'GET',
+      'POST',
+    ],
     credentials: true,
   },
+
+  transports: [
+    'websocket',
+    'polling',
+  ],
 });
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+/* ======================================================
+   MIDDLEWARE
+====================================================== */
 
-// DB
-mongoose
-  .connect(process.env.MONGO_URI || 'mongodb://localhost:27017/dating-app')
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.log(err));
+app.use(cors({
+  origin: '*',
+  methods: [
+    'GET',
+    'POST',
+    'PUT',
+    'DELETE',
+  ],
+  credentials: true,
+}));
+
+app.use(express.json());
+
+app.use(
+  express.urlencoded({
+    extended: true,
+  })
+);
+
+app.use(
+  '/uploads',
+  express.static(
+    path.join(
+      __dirname,
+      'uploads'
+    )
+  )
+);
 
 /* ======================================================
-   🔥 ONLINE USERS (FIXED)
+   DATABASE
+====================================================== */
+
+mongoose
+  .connect(
+    process.env.MONGO_URI ||
+      'mongodb://localhost:27017/dating-app'
+  )
+  .then(() => {
+
+    console.log(
+      'MongoDB connected'
+    );
+
+  })
+  .catch((err) => {
+
+    console.log(err);
+
+  });
+
+/* ======================================================
+   ONLINE USERS
    userId -> Set(socketIds)
 ====================================================== */
-const onlineUsers = new Map();
+
+const onlineUsers =
+  new Map();
 
 /* ======================================================
    SOCKET CONNECTION
 ====================================================== */
-io.on('connection', (socket) => {
-  console.log('New user:', socket.id);
 
-  /* ---------------- JOIN ---------------- */
-  socket.on('join', (userId) => {
-    if (!userId) return;
+io.on(
+  'connection',
+  (socket) => {
 
-    socket.userId = String(userId);
+    console.log(
+      'New socket:',
+      socket.id
+    );
 
-    if (!onlineUsers.has(userId)) {
-      onlineUsers.set(userId, new Set());
-    }
+    /* =========================
+       JOIN
+    ========================= */
 
-    onlineUsers.get(userId).add(socket.id);
+    socket.on(
+      'join',
+      (userId) => {
 
-    console.log('JOINED:', userId, socket.id);
+        if (!userId)
+          return;
 
-    io.emit('online_users', Array.from(onlineUsers.keys()));
-  });
+        const id =
+          String(userId);
 
-  /* ---------------- TYPING ---------------- */
-  socket.on('typing', (data) => {
-    const receivers = onlineUsers.get(data.receiverId);
+        socket.userId =
+          id;
 
-    if (receivers) {
-      receivers.forEach((id) => {
-        io.to(id).emit('typing', {
-          senderId: data.senderId,
-        });
-      });
-    }
-  });
+        if (
+          !onlineUsers.has(
+            id
+          )
+        ) {
 
-  socket.on('stop_typing', (data) => {
-    const receivers = onlineUsers.get(data.receiverId);
+          onlineUsers.set(
+            id,
+            new Set()
+          );
 
-    if (receivers) {
-      receivers.forEach((id) => {
-        io.to(id).emit('stop_typing', {
-          senderId: data.senderId,
-        });
-      });
-    }
-  });
+        }
 
-  /* ---------------- MESSAGE ---------------- */
-  socket.on('send_message', async (data) => {
-  try {
+        onlineUsers
+          .get(id)
+          .add(socket.id);
 
-    // SAVE MESSAGE
-    const message = await Message.create({
-      sender: data.senderId,
-      receiver: data.receiverId,
-      content: data.content,
-    });
+        console.log(
+          'JOINED:',
+          id,
+          socket.id
+        );
 
-    // POPULATE
-    const populatedMessage =
-      await Message.findById(message._id)
-        .populate('sender', 'name profilePhoto')
-        .populate('receiver', 'name profilePhoto');
+        io.emit(
+          'online_users',
+          Array.from(
+            onlineUsers.keys()
+          )
+        );
+      }
+    );
 
-    // NOTIFICATION
-    const notificationController =
-      require('./controllers/notificationController');
+    /* =========================
+       TYPING
+    ========================= */
 
-    await notificationController.createNotification({
-      ownerId: data.receiverId,
-      fromId: data.senderId,
-      type: 'message',
-      content: data.content,
-    });
+    socket.on(
+      'typing',
+      (data) => {
 
-    // SEND TO RECEIVER (and sender as well, but avoid duplicates when sender==receiver)
-    const receiverSockets = onlineUsers.get(data.receiverId);
-    if (receiverSockets) {
-      receiverSockets.forEach((id) => {
-        io.to(id).emit('receive_message', populatedMessage);
-      });
-    }
+        const receivers =
+          onlineUsers.get(
+            String(
+              data.receiverId
+            )
+          );
 
-    const senderSockets = onlineUsers.get(data.senderId);
-    if (senderSockets) {
-      senderSockets.forEach((id) => {
-        // prevent double-send to the same socket if receiverId === senderId
-        if (String(data.receiverId) === String(data.senderId) && receiverSockets?.has(id)) return;
-        io.to(id).emit('receive_message', populatedMessage);
-      });
-    }
+        if (receivers) {
 
-  } catch (err) {
-    console.error(err);
+          receivers.forEach(
+            (id) => {
+
+              io.to(id).emit(
+                'typing',
+                {
+                  senderId:
+                    data.senderId,
+                }
+              );
+
+            }
+          );
+        }
+      }
+    );
+
+    socket.on(
+      'stop_typing',
+      (data) => {
+
+        const receivers =
+          onlineUsers.get(
+            String(
+              data.receiverId
+            )
+          );
+
+        if (receivers) {
+
+          receivers.forEach(
+            (id) => {
+
+              io.to(id).emit(
+                'stop_typing',
+                {
+                  senderId:
+                    data.senderId,
+                }
+              );
+
+            }
+          );
+        }
+      }
+    );
+
+    /* =========================
+       SEND MESSAGE
+    ========================= */
+
+    socket.on(
+      'send_message',
+      async (data) => {
+
+        try {
+
+          // SAVE MESSAGE
+
+          const message =
+            await Message.create(
+              {
+                sender:
+                  data.senderId,
+                receiver:
+                  data.receiverId,
+                content:
+                  data.content,
+              }
+            );
+
+          // POPULATE
+
+          const populatedMessage =
+            await Message.findById(
+              message._id
+            )
+              .populate(
+                'sender',
+                'name profilePhoto'
+              )
+              .populate(
+                'receiver',
+                'name profilePhoto'
+              );
+
+          // CREATE NOTIFICATION
+
+          try {
+
+            const notificationController =
+              require('./controllers/notificationController');
+
+            await notificationController.createNotification(
+              {
+                ownerId:
+                  data.receiverId,
+                fromId:
+                  data.senderId,
+                type:
+                  'message',
+                content:
+                  data.content,
+              }
+            );
+
+          } catch (e) {
+
+            console.log(
+              'notification error',
+              e.message
+            );
+
+          }
+
+          // RECEIVER SOCKETS
+
+          const receiverSockets =
+            onlineUsers.get(
+              String(
+                data.receiverId
+              )
+            );
+
+          if (
+            receiverSockets
+          ) {
+
+            receiverSockets.forEach(
+              (id) => {
+
+                io.to(id).emit(
+                  'receive_message',
+                  populatedMessage
+                );
+
+              }
+            );
+          }
+
+          // SENDER SOCKETS
+
+          const senderSockets =
+            onlineUsers.get(
+              String(
+                data.senderId
+              )
+            );
+
+          if (
+            senderSockets
+          ) {
+
+            senderSockets.forEach(
+              (id) => {
+
+                // PREVENT DUPLICATE
+
+                if (
+                  String(
+                    data.receiverId
+                  ) ===
+                    String(
+                      data.senderId
+                    ) &&
+                  receiverSockets?.has(
+                    id
+                  )
+                ) {
+
+                  return;
+
+                }
+
+                io.to(id).emit(
+                  'receive_message',
+                  populatedMessage
+                );
+
+              }
+            );
+          }
+
+        } catch (err) {
+
+          console.error(
+            'message error:',
+            err
+          );
+
+        }
+      }
+    );
+
+    /* =========================
+       VIDEO CALL
+    ========================= */
+
+    socket.on(
+      'call_user',
+      async (data) => {
+
+        try {
+
+          const receivers =
+            onlineUsers.get(
+              String(
+                data.to
+              )
+            );
+
+          if (
+            receivers
+          ) {
+
+            receivers.forEach(
+              (id) => {
+
+                io.to(id).emit(
+                  'incoming_call',
+                  data
+                );
+
+              }
+            );
+
+          } else {
+
+            console.log(
+              'user offline:',
+              data.to
+            );
+
+          }
+
+        } catch (err) {
+
+          console.error(err);
+
+        }
+      }
+    );
+
+    /* =========================
+       ANSWER
+    ========================= */
+
+    socket.on(
+      'make_answer',
+      (data) => {
+
+        const receivers =
+          onlineUsers.get(
+            String(data.to)
+          );
+
+        if (receivers) {
+
+          receivers.forEach(
+            (id) => {
+
+              io.to(id).emit(
+                'answer_made',
+                data
+              );
+
+            }
+          );
+        }
+      }
+    );
+
+    /* =========================
+       ICE CANDIDATE
+    ========================= */
+
+    socket.on(
+      'ice_candidate',
+      (data) => {
+
+        const receivers =
+          onlineUsers.get(
+            String(data.to)
+          );
+
+        if (receivers) {
+
+          receivers.forEach(
+            (id) => {
+
+              io.to(id).emit(
+                'ice_candidate',
+                data
+              );
+
+            }
+          );
+        }
+      }
+    );
+
+    /* =========================
+       END CALL
+    ========================= */
+
+    socket.on(
+      'end_call',
+      (data) => {
+
+        const receivers =
+          onlineUsers.get(
+            String(data.to)
+          );
+
+        if (receivers) {
+
+          receivers.forEach(
+            (id) => {
+
+              io.to(id).emit(
+                'call_ended',
+                data
+              );
+
+            }
+          );
+        }
+      }
+    );
+
+    /* =========================
+       SOCKET ERROR
+    ========================= */
+
+    socket.on(
+      'connect_error',
+      (err) => {
+
+        console.log(
+          'socket error:',
+          err
+        );
+
+      }
+    );
+
+    /* =========================
+       DISCONNECT
+    ========================= */
+
+    socket.on(
+      'disconnect',
+      () => {
+
+        console.log(
+          'Disconnected:',
+          socket.id
+        );
+
+        const userId =
+          socket.userId;
+
+        if (
+          userId &&
+          onlineUsers.has(
+            userId
+          )
+        ) {
+
+          const set =
+            onlineUsers.get(
+              userId
+            );
+
+          set.delete(
+            socket.id
+          );
+
+          if (
+            set.size === 0
+          ) {
+
+            onlineUsers.delete(
+              userId
+            );
+
+          }
+        }
+
+        io.emit(
+          'online_users',
+          Array.from(
+            onlineUsers.keys()
+          )
+        );
+      }
+    );
   }
-});
-
-  /* ---------------- CALL USER ---------------- */
-  socket.on('call_user', async (data) => {
-    try {
-      const notificationController = require('./controllers/notificationController');
-
-      await notificationController.createNotification({
-        ownerId: data.to,
-        fromId: data.from,
-        type: 'call',
-        content: data.name || '',
-      });
-
-      const receivers = onlineUsers.get(data.to);
-
-      if (receivers) {
-        receivers.forEach((id) => {
-          io.to(id).emit('incoming_call', data);
-        });
-      } else {
-        console.log('User offline:', data.to);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  });
-
-  /* ---------------- WEBRTC ANSWER ---------------- */
-  socket.on('make_answer', (data) => {
-    const receivers = onlineUsers.get(data.to);
-
-    if (receivers) {
-      receivers.forEach((id) => {
-        io.to(id).emit('answer_made', data);
-      });
-    }
-  });
-
-  /* ---------------- ICE CANDIDATE ---------------- */
-  socket.on('ice_candidate', (data) => {
-    const receivers = onlineUsers.get(data.to);
-
-    if (receivers) {
-      receivers.forEach((id) => {
-        io.to(id).emit('ice_candidate', data);
-      });
-    }
-  });
-
-  /* ---------------- END CALL ---------------- */
-  socket.on('end_call', (data) => {
-    const receivers = onlineUsers.get(data.to);
-
-    if (receivers) {
-      receivers.forEach((id) => {
-        io.to(id).emit('call_ended', data);
-      });
-    }
-  });
-
-  /* ---------------- DISCONNECT ---------------- */
-  socket.on('disconnect', () => {
-    console.log('Disconnected:', socket.id);
-
-    const userId = socket.userId;
-
-    if (userId && onlineUsers.has(userId)) {
-      const set = onlineUsers.get(userId);
-
-      set.delete(socket.id);
-
-      if (set.size === 0) {
-        onlineUsers.delete(userId);
-      }
-    }
-
-    io.emit('online_users', Array.from(onlineUsers.keys()));
-  });
-});
+);
 
 /* ======================================================
    ROUTES
 ====================================================== */
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/subscriptions', subscriptionRoutes);
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
+app.use(
+  '/api/auth',
+  authRoutes
+);
+
+app.use(
+  '/api/users',
+  userRoutes
+);
+
+app.use(
+  '/api/messages',
+  messageRoutes
+);
+
+app.use(
+  '/api/notifications',
+  notificationRoutes
+);
+
+app.use(
+  '/api/admin',
+  adminRoutes
+);
+
+app.use(
+  '/api/subscriptions',
+  subscriptionRoutes
+);
+
+/* ======================================================
+   HEALTH
+====================================================== */
+
+app.get(
+  '/api/health',
+  (req, res) => {
+
+    res.json({
+      status: 'ok',
+    });
+
+  }
+);
 
 /* ======================================================
    START SERVER
 ====================================================== */
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
-});
+
+const PORT =
+  process.env.PORT ||
+  5000;
+
+server.listen(
+  PORT,
+  () => {
+
+    console.log(
+      `Server running on ${PORT}`
+    );
+
+  }
+);
