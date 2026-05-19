@@ -1,8 +1,6 @@
-# TODO
+## VideoCall button fix
 
-## Typing indicator (WhatsApp-like) in Chat
-
-- [ ] Add Socket.IO server handlers for `typing` (and `stop_typing` via timeout behavior).
-- [ ] Update `client/src/pages/ChatPage.js` to emit `typing` while user is typing (debounced).
-- [ ] Update `client/src/pages/ChatPage.js` to listen for receiver `typing` and render “{name} is typing…” in UI.
-- [ ] Quick sanity test: two tabs, verify typing indicator appears and disappears; verify messages still arrive instantly.
+- [ ] Inspect ChatPage video button click handler
+- [ ] Update navigation in `client/src/pages/ChatPage.js` to go to `/video-call/${selectedUserId}`
+- [ ] (Optional) Pass state payload for `VideoCallPage`
+- [ ] Run frontend build/dev (if available) to verify routing

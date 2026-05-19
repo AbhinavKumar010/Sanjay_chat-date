@@ -34,17 +34,11 @@ const NotificationsPage = () => {
 
   useEffect(() => {
     fetchNotifications();
-
-    // Auto-refresh notifications instantly without reload
-    // (server creates notifications in real-time; this polls lightweight and updates UI)
-    const intervalId = setInterval(fetchNotifications, 3000);
-
-    return () => clearInterval(intervalId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 
   const markRead = async (id) => {
+
     try {
       await apiClient.put(`/notifications/mark-read/${id}`);
     } catch (e) {
@@ -61,8 +55,8 @@ const NotificationsPage = () => {
       state: { userId: n.from._id },
     });
 
-    // Optimistic update
-    setNotifications((prev) => prev.map((x) => (x._id === n._id ? { ...x, isRead: true } : x)));
+    // Remove notification immediately after click
+    setNotifications((prev) => prev.filter((x) => x._id !== n._id));
   };
 
   return (

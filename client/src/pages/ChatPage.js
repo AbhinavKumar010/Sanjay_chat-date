@@ -253,15 +253,12 @@ const ChatPage = () => {
 
         // OPEN VIDEO PAGE
 
-navigate(
-          `/video/${data.from}`,
-          {
-            state: {
-              incomingCall: true,
-              callData: data,
-            },
-          }
-        );
+        navigate(`/video-call/${data.from}`, {
+          state: {
+            incomingCall: true,
+            callData: data,
+          },
+        });
       }
     );
 
@@ -462,15 +459,11 @@ navigate(
         {selectedUserId && (
           <button
             onClick={() =>
-navigate(
-                `/video/${selectedUserId}`,
-                {
-                  state: {
-                    userName:
-                      selectedUser?.name,
-                  },
-                }
-              )
+              navigate(`/video-call/${selectedUserId}`, {
+                state: {
+                  userName: selectedUser?.name,
+                },
+              })
             }
             className="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-full transition"
           >
