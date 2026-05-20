@@ -23,7 +23,9 @@ const NotificationsPage = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true);
+
       const res = await apiClient.get('/notifications/');
+
       setNotifications(res.data || []);
     } catch (e) {
       console.error('[notifications] fetch failed:', {
@@ -31,6 +33,7 @@ const NotificationsPage = () => {
         status: e?.response?.status,
         data: e?.response?.data,
       });
+
       toast.error('Unable to fetch notifications');
     } finally {
       setLoading(false);
@@ -40,24 +43,35 @@ const NotificationsPage = () => {
   useEffect(() => {
     fetchNotifications();
 
-    socketRef.current = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000', {
-      transports: ['websocket'],
-      withCredentials: true,
-    });
+    socketRef.current = io(
+      process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000',
+      {
+        transports: ['websocket'],
+        withCredentials: true,
+      }
+    );
 
     socketRef.current.on('connect', () => {
-      if (userId) socketRef.current.emit('join', userId);
+      if (userId) {
+        socketRef.current.emit('join', userId);
+      }
     });
 
+    // Incoming Call
     socketRef.current.on('incoming_call', (data) => {
-
       setNotifications((prev) => [
         {
           _id: data._id || Date.now().toString(),
           type: 'call',
-          from: data.from,
-          name: data.name,
-          content: data.name || '',
+
+          // Always store full object
+          from: {
+            _id: data.from?._id || data.from,
+            name: data.name || data.from?.name || 'Unknown',
+          },
+
+          name: data.name || data.from?.name || 'Unknown',
+          content: '',
           createdAt: new Date(),
           isRead: false,
         },
@@ -65,17 +79,23 @@ const NotificationsPage = () => {
       ]);
     });
 
+    // Incoming Message
     socketRef.current.on('receive_message', (message) => {
-      // server emits populated Message:
-      // { _id, sender: { _id, name, ... }, receiver: {...}, content, createdAt, ... }
       const fromUser = message?.sender;
 
       setNotifications((prev) => [
         {
           _id: message._id || Date.now().toString(),
           type: 'message',
-          from: fromUser?._id || fromUser,
-          content: message?.content,
+
+          // Store full object
+          from: {
+            _id: fromUser?._id || fromUser,
+            name: fromUser?.name || 'Unknown',
+          },
+
+          name: fromUser?.name || 'Unknown',
+          content: message?.content || '',
           createdAt: message?.createdAt || new Date(),
           isRead: false,
         },
@@ -84,47 +104,55 @@ const NotificationsPage = () => {
     });
 
     return () => {
-      if (socketRef.current) socketRef.current.disconnect();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
     };
-  }, []);
-
-
-
-
-
+  }, [userId]);
 
   const markRead = async (id) => {
-
     try {
       await apiClient.put(`/notifications/mark-read/${id}`);
     } catch (e) {
-      // ignore
+      console.log('mark read failed');
     }
   };
 
   const handleClickNotification = async (n) => {
     await markRead(n._id);
 
-    // Remove notification immediately after click
+    // Remove instantly
     setNotifications((prev) => prev.filter((x) => x._id !== n._id));
 
-    // If it's an incoming call, open VideoCallPage directly
+    // Safe extraction
+    const clickedUserId =
+      typeof n.from === 'object' ? n.from?._id : n.from;
+
+    const clickedUserName =
+      typeof n.from === 'object'
+        ? n.from?.name
+        : n.name || 'User';
+
+    // Call Notification
     if (n.type === 'call') {
-      navigate(`/video-call/${n.from._id}`, {
+      navigate(`/video-call/${clickedUserId}`, {
         state: {
           incomingCall: true,
           callData: n,
         },
       });
+
       return;
     }
 
-    // Otherwise open chat
-    navigate(`/chat/${n.from._id}`, {
-      state: { userId: n.from._id },
+    // Message Notification
+    navigate(`/chat/${clickedUserId}`, {
+      state: {
+        userId: clickedUserId,
+        name: clickedUserName,
+      },
     });
   };
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black p-6">
@@ -135,7 +163,10 @@ const NotificationsPage = () => {
       >
         <div className="flex items-center gap-3">
           <FaBell className="text-3xl text-white" />
-          <h1 className="text-3xl font-bold text-white">Notifications</h1>
+
+          <h1 className="text-3xl font-bold text-white">
+            Notifications
+          </h1>
         </div>
       </motion.div>
 
@@ -143,8 +174,14 @@ const NotificationsPage = () => {
         <div className="text-gray-300">Loading...</div>
       ) : notifications.length === 0 ? (
         <div className="bg-gray-800/60 rounded-2xl p-8 border border-gray-700 text-gray-300">
-          <p className="text-lg font-semibold">No notifications</p>
-          <p className="text-sm text-gray-400 mt-2">When someone messages or calls you, it will appear here.</p>
+          <p className="text-lg font-semibold">
+            No notifications
+          </p>
+
+          <p className="text-sm text-gray-400 mt-2">
+            When someone messages or calls you, it will appear
+            here.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -155,7 +192,9 @@ const NotificationsPage = () => {
               animate={{ opacity: 1, y: 0 }}
               whileHover={{ scale: 1.01 }}
               className={`cursor-pointer p-4 rounded-2xl border transition ${
-                n.isRead ? 'bg-gray-800/40 border-gray-700' : 'bg-gradient-to-r from-purple-600/30 to-blue-600/30 border-purple-400/40'
+                n.isRead
+                  ? 'bg-gray-800/40 border-gray-700'
+                  : 'bg-gradient-to-r from-purple-600/30 to-blue-600/30 border-purple-400/40'
               }`}
               onClick={() => handleClickNotification(n)}
             >
@@ -164,20 +203,32 @@ const NotificationsPage = () => {
                   <div className="text-white mt-0.5">
                     <FaRegCommentDots className="text-2xl" />
                   </div>
+
                   <div>
                     <p className="text-white font-semibold">
-                      {n.type === 'message' ? 'Message' : 'Incoming call'} from {n.from?.name || 'Unknown'}
+                      {n.type === 'message'
+                        ? 'Message'
+                        : 'Incoming call'}{' '}
+                      from {n.from?.name || n.name || 'Unknown'}
                     </p>
+
                     {n.type === 'message' && n.content ? (
-                      <p className="text-gray-300 text-sm mt-1 line-clamp-2">{n.content}</p>
+                      <p className="text-gray-300 text-sm mt-1 line-clamp-2">
+                        {n.content}
+                      </p>
                     ) : null}
+
                     <p className="text-gray-500 text-xs mt-1">
                       {new Date(n.createdAt).toLocaleString()}
                     </p>
                   </div>
                 </div>
 
-                {!n.isRead && <span className="text-xs text-white bg-red-500/90 px-2 py-1 rounded-full">New</span>}
+                {!n.isRead && (
+                  <span className="text-xs text-white bg-red-500/90 px-2 py-1 rounded-full">
+                    New
+                  </span>
+                )}
               </div>
             </motion.div>
           ))}
@@ -188,4 +239,3 @@ const NotificationsPage = () => {
 };
 
 export default NotificationsPage;
-
